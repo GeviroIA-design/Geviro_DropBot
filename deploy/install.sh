@@ -15,7 +15,7 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-dropbot}"
 APP_DIR="${APP_DIR:-/opt/geviro-dropbot}"
-REPO_URL="${REPO_URL:-}"
+REPO_URL="${REPO_URL:-https://github.com/GeviroIA-design/Geviro_DropBot.git}"
 SERVICE_NAME="${SERVICE_NAME:-geviro-dropbot}"
 
 if [[ $EUID -ne 0 ]]; then
