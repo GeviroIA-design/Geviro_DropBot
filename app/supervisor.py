@@ -44,6 +44,10 @@ class Supervisor:
         self.settings = settings
         self.clock = clock
 
+        # Détection de gel du process (veille machine / saut d'horloge).
+        self._last_tick = None
+        self._suppress_watchdog_until = 0.0
+
         # Persistance
         self.service_state = ServiceState(store)
         self.queue = JobQueue(store, clock=clock)
@@ -133,6 +137,24 @@ class Supervisor:
     def tick(self, now: Optional[float] = None) -> List[dict]:
         """Un battement de superviseur : scheduler + heartbeat + watchdog."""
         now = now if now is not None else self.clock()
+
+        # Si l'écart depuis le dernier tick dépasse largement l'intervalle,
+        # c'est que le process a été gelé (veille machine, suspension VM,
+        # ou saut d'horloge). On accorde alors une période de grâce au
+        # watchdog pour laisser workers et jobs se rafraîchir -> évite les
+        # fausses alertes 'stale heartbeat' / 'stuck job' au réveil.
+        gap_threshold = max(
+            self.settings.heartbeat_max_age, 5 * self.settings.tick_interval
+        )
+        if self._last_tick is not None and (now - self._last_tick) > gap_threshold:
+            gap = now - self._last_tick
+            self._suppress_watchdog_until = now + self.settings.heartbeat_max_age
+            log.warning(
+                f"gel detecte ({gap:.0f}s sans tick: veille ou saut d'horloge) "
+                f"-> watchdog en grace {self.settings.heartbeat_max_age:.0f}s"
+            )
+        self._last_tick = now
+
         if not self.service_state.is_blocked():
             enqueued = self.scheduler.tick(self.queue)
             if enqueued:
@@ -140,13 +162,27 @@ class Supervisor:
         self.metrics.set_heartbeat(HEARTBEAT_SUPERVISOR, now)
 
         anomalies = self.watchdog.check(now)
+        if now < self._suppress_watchdog_until:
+            # Période de grâce post-gel : on n'agit pas et on n'alerte pas.
+            return []
         for a in anomalies:
             if a["type"] == "stuck_job":
                 self.queue.requeue_job(a["job_id"], now)
             self.alerts.raise_alert(
-                IncidentSeverity.WARNING.value, "watchdog", a["detail"]
+                IncidentSeverity.WARNING.value, "watchdog", self._alert_message(a)
             )
         return anomalies
+
+    @staticmethod
+    def _alert_message(anomaly: dict) -> str:
+        """Message d'alerte STABLE (sans le nombre de secondes qui change à
+        chaque tick) -> permet l'anti-spam de l'AlertManager si un worker
+        meurt réellement."""
+        if anomaly["type"] == "stale_heartbeat":
+            return f"heartbeat '{anomaly['component']}' perime"
+        if anomaly["type"] == "stuck_job":
+            return f"job #{anomaly['job_id']} ({anomaly['name']}) bloque"
+        return anomaly.get("detail", "anomalie watchdog")
 
     # ------------------------------------------------------------------ #
     # Handlers de jobs (appellent le coeur scoring existant)

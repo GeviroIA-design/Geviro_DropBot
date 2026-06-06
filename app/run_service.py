@@ -24,12 +24,14 @@ log = get_logger("run_service")
 
 def _worker_loop(worker, stop: threading.Event, metrics, idle_sleep: float) -> None:
     while not stop.is_set():
+        did = False
+        # Tout le corps est protégé : un worker ne doit JAMAIS mourir
+        # silencieusement (sinon son heartbeat se fige -> fausses alertes).
         try:
             did = worker.run_once()
+            metrics.set_heartbeat(worker.name)
         except Exception as exc:  # noqa: BLE001
             log.warning(f"{worker.name} error: {exc}")
-            did = False
-        metrics.set_heartbeat(worker.name)
         if not did:
             stop.wait(idle_sleep)
 
