@@ -21,7 +21,9 @@ from monitoring.healthcheck import compute_health
 from monitoring.incident_store import IncidentStore
 from monitoring.metrics_store import MetricsStore
 from runtime.circuit_breaker import CircuitBreaker
+from runtime.executor import OrderExecutor
 from runtime.job_queue import JobQueue
+from runtime.proposal_store import ProposalStore
 from runtime.recovery import recover_on_start
 from runtime.retry_policy import RetryPolicy
 from runtime.scheduler import Scheduler
@@ -54,6 +56,7 @@ class Supervisor:
         self.metrics = MetricsStore(store, clock=clock)
         self.incidents = IncidentStore(store, clock=clock)
         self.audit = AuditLog(store, clock=clock)
+        self.proposals = ProposalStore(store, clock=clock)
 
         # Politique d'échec
         self.retry_policy = RetryPolicy(
@@ -69,6 +72,19 @@ class Supervisor:
 
         # Référence optionnelle vers l'auth Telegram (pour /reload_config)
         self.auth = None
+
+        # Exécution des commandes approuvées, sous garde-fous.
+        # place_order=None => ordre SIMULÉ (aucune dépense réelle) tant
+        # qu'aucune API marketplace n'est branchée.
+        self.executor = OrderExecutor(
+            self.proposals, self.metrics, self.incidents, self.service_state,
+            max_eur_per_order=settings.max_eur_per_order,
+            max_orders_per_day=settings.max_orders_per_day,
+            place_order=None,
+            clock=clock,
+        )
+        # Hook de notification des propositions (branché par telegram_admin).
+        self.notify = None
 
         # Scheduler récurrent
         self.scheduler = Scheduler(clock=clock)
@@ -215,6 +231,64 @@ class Supervisor:
             }
         )
         self.metrics.incr("scans")
+        self._generate_proposals(products, scorecards)
+
+    def _generate_proposals(self, products, scorecards) -> None:
+        """Crée une proposition à gain positif pour chaque produit 'BUY',
+        dans la limite du budget par commande, et la pousse sur Telegram."""
+        prod_by_id = {p.product_id: p for p in products}
+        decision_by_id = {s.product_id: s for s in scorecards}
+        qty_default = max(1, self.settings.proposal_quantity)
+        budget = self.settings.max_eur_per_order
+
+        for pid, sc in decision_by_id.items():
+            if sc.decision != "BUY":
+                continue
+            p = prod_by_id.get(pid)
+            if p is None or p.net_profit <= 0:
+                continue
+            unit_cost = round(p.purchase_cost + p.shipping_cost, 2)
+            if unit_cost <= 0 or unit_cost > budget:
+                continue  # même une unité dépasse le plafond
+            qty = min(qty_default, int(budget // unit_cost))
+            if qty < 1:
+                continue
+            expected_gain = round(qty * p.net_profit, 2)
+            if expected_gain <= 0:
+                continue
+            if self.proposals.has_pending_for(pid):
+                continue  # déjà proposé, pas de doublon
+
+            order_cost = round(qty * unit_cost, 2)
+            prop_id = self.proposals.create(
+                product_id=pid,
+                name=p.name,
+                quantity=qty,
+                unit_cost=unit_cost,
+                unit_sell_price=p.estimated_selling_price,
+                expected_unit_net=round(p.net_profit, 2),
+                expected_gain=expected_gain,
+                order_cost=order_cost,
+                score=sc.final_score,
+            )
+            self._push_proposal(prop_id, p.name, qty, order_cost,
+                                expected_gain, p.net_margin)
+
+    def _push_proposal(self, prop_id, name, qty, order_cost, gain, net_margin):
+        if not self.notify:
+            return
+        msg = (
+            f"PROPOSITION #{prop_id}\n"
+            f"{name}\n"
+            f"Qte {qty} | cout {order_cost:.2f} EUR | marge nette "
+            f"{net_margin * 100:.0f}%\n"
+            f"GAIN ESTIME : +{gain:.2f} EUR\n"
+            f"-> /approve {prop_id}   ou   /reject {prop_id}"
+        )
+        try:
+            self.notify(msg)
+        except Exception as exc:  # noqa: BLE001
+            log.warning(f"push proposition #{prop_id} echoue: {exc}")
 
     def _handle_export(self, payload: dict) -> None:
         from app.orchestrator import execute
@@ -249,6 +323,7 @@ class Supervisor:
             "last_scan_ts": last_scan.get("ts"),
             "last_export_ts": last_export.get("ts"),
             "open_incidents": self.incidents.open_count(),
+            "pending_proposals": self.proposals.pending_count(),
         }
 
     def health(self) -> dict:
@@ -355,3 +430,14 @@ class Supervisor:
 
     def ack_incident(self, incident_id: int, admin_id) -> bool:
         return self.incidents.ack(incident_id, admin_id)
+
+    # --- propositions d'achat ---
+    def list_proposals(self, limit: int = 15) -> List[dict]:
+        from runtime.proposal_store import PENDING
+        return self.proposals.list(status=PENDING, limit=limit)
+
+    def approve_proposal(self, proposal_id: int, admin_id):
+        return self.executor.approve(proposal_id, admin_id)
+
+    def reject_proposal(self, proposal_id: int, admin_id):
+        return self.executor.reject(proposal_id, admin_id)

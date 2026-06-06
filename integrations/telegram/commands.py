@@ -130,6 +130,32 @@ def cmd_ack_incident(sup, args, user_id) -> str:
         f"Incident #{incident_id} introuvable ou déjà acquitté."
 
 
+def cmd_proposals(sup, args, user_id) -> str:
+    return fmt.fmt_proposals(sup.list_proposals(_int_arg(args, 0, 15)))
+
+
+def cmd_approve(sup, args, user_id) -> str:
+    if not args:
+        return "Usage: /approve <id>"
+    try:
+        pid = int(args[0])
+    except ValueError:
+        return "id invalide. Usage: /approve <id>"
+    _ok, msg = sup.approve_proposal(pid, user_id)
+    return msg
+
+
+def cmd_reject(sup, args, user_id) -> str:
+    if not args:
+        return "Usage: /reject <id>"
+    try:
+        pid = int(args[0])
+    except ValueError:
+        return "id invalide. Usage: /reject <id>"
+    _ok, msg = sup.reject_proposal(pid, user_id)
+    return msg
+
+
 def _int_arg(args: List[str], idx: int, default: int) -> int:
     if len(args) > idx:
         try:
@@ -152,6 +178,9 @@ COMMANDS: Dict[str, Dict] = {
     "incidents": {"func": cmd_incidents, "help": "incidents récents [n]", "confirm": False},
     "lastscan": {"func": cmd_lastscan, "help": "dernier scan", "confirm": False},
     "tops": {"func": cmd_tops, "help": "meilleurs produits du dernier scan", "confirm": False},
+    "proposals": {"func": cmd_proposals, "help": "propositions d'achat en attente [n]", "confirm": False},
+    "approve": {"func": cmd_approve, "help": "valide une proposition <id>", "confirm": False},
+    "reject": {"func": cmd_reject, "help": "refuse une proposition <id>", "confirm": False},
     "watchdog": {"func": cmd_watchdog, "help": "anomalies détectées", "confirm": False},
     "pause": {"func": cmd_pause, "help": "met les workers en pause", "confirm": False},
     "resume": {"func": cmd_resume, "help": "reprend l'exécution", "confirm": False},

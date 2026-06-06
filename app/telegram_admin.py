@@ -35,6 +35,8 @@ class TelegramAdmin:
         )
         self.notifier = Notifier(self.client, settings.telegram_admin_ids)
         supervisor.alerts.set_notifier(self.notifier.broadcast)
+        # Push des propositions d'achat vers l'admin.
+        supervisor.notify = self.notifier.broadcast
 
         self.enabled = self.client.enabled
         self._offset = 0

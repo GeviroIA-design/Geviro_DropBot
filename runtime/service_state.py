@@ -67,6 +67,24 @@ CREATE TABLE IF NOT EXISTS circuit_breakers (
     opened_at  REAL,
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS proposals (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id        TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    quantity          INTEGER NOT NULL,
+    unit_cost         REAL NOT NULL,
+    unit_sell_price   REAL NOT NULL,
+    expected_unit_net REAL NOT NULL,
+    expected_gain     REAL NOT NULL,
+    order_cost        REAL NOT NULL,
+    score             REAL NOT NULL,
+    status            TEXT NOT NULL DEFAULT 'pending',
+    created_at        REAL NOT NULL,
+    decided_at        REAL,
+    decided_by        TEXT,
+    note              TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status, id);
 """
 
 
