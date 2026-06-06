@@ -74,7 +74,7 @@ Commandes : `/help` les liste toutes. Accès **réservé aux IDs admin** ;
 toute action est journalisée (audit). Voir `CLAUDE.md` pour la matrice.
 
 ### Déploiement VPS (systemd)
-Voir `deploy/bot-service.service` et la section déploiement de `CLAUDE.md`.
+Voir `deploy/geviro-dropbot.service` et la section déploiement de `CLAUDE.md`.
 
 ## Tests
 ```bash

@@ -7,7 +7,7 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-dropbot}"
 APP_DIR="${APP_DIR:-/opt/geviro-dropbot}"
-SERVICE_NAME="${SERVICE_NAME:-bot-service}"
+SERVICE_NAME="${SERVICE_NAME:-geviro-dropbot}"
 
 if [[ $EUID -ne 0 ]]; then
   echo "ERREUR: lancez avec sudo (root)." >&2

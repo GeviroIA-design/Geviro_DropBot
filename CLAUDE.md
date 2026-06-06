@@ -175,6 +175,6 @@ python -m unittest discover -s tests -v                # 64 tests
 ## Déploiement VPS (systemd)
 1. `git clone` dans `/opt/geviro-dropbot`, créer `.venv`, `pip install -r requirements.txt`.
 2. Copier `.env` (token + admin IDs).
-3. `cp deploy/bot-service.service /etc/systemd/system/` (adapter User/paths).
-4. `systemctl daemon-reload && systemctl enable --now bot-service`.
-5. Logs : `journalctl -u bot-service -f`. Restart auto via `Restart=always`.
+3. `cp deploy/geviro-dropbot.service /etc/systemd/system/` (adapter User/paths).
+4. `systemctl daemon-reload && systemctl enable --now geviro-dropbot`.
+5. Logs : `journalctl -u geviro-dropbot -f`. Restart auto via `Restart=always`.

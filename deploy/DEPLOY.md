@@ -73,9 +73,9 @@ TELEGRAM_ADMIN_IDS=1473089737
 
 7. Démarre et vérifie :
 ```bash
-sudo systemctl start bot-service
-sudo systemctl status bot-service
-journalctl -u bot-service -f
+sudo systemctl start geviro-dropbot
+sudo systemctl status geviro-dropbot
+journalctl -u geviro-dropbot -f
 ```
 Tu dois voir `service up ... telegram=on` puis `telegram admin: polling demarre`.
 Envoie `/ping` puis `/status` au bot dans Telegram.
@@ -86,14 +86,14 @@ Envoie `/ping` puis `/status` au bot dans Telegram.
 
 ```bash
 # état / logs
-sudo systemctl status bot-service
-journalctl -u bot-service -f               # logs en direct
-journalctl -u bot-service --since "1 hour ago"
+sudo systemctl status geviro-dropbot
+journalctl -u geviro-dropbot -f               # logs en direct
+journalctl -u geviro-dropbot --since "1 hour ago"
 
 # contrôle
-sudo systemctl restart bot-service
-sudo systemctl stop bot-service
-sudo systemctl start bot-service
+sudo systemctl restart geviro-dropbot
+sudo systemctl stop geviro-dropbot
+sudo systemctl start geviro-dropbot
 
 # mise à jour (après un nouveau push depuis Windows)
 sudo bash /opt/geviro-dropbot/deploy/update.sh

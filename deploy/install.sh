@@ -16,7 +16,7 @@ set -euo pipefail
 APP_USER="${APP_USER:-dropbot}"
 APP_DIR="${APP_DIR:-/opt/geviro-dropbot}"
 REPO_URL="${REPO_URL:-}"
-SERVICE_NAME="${SERVICE_NAME:-bot-service}"
+SERVICE_NAME="${SERVICE_NAME:-geviro-dropbot}"
 
 if [[ $EUID -ne 0 ]]; then
   echo "ERREUR: lancez ce script avec sudo (root)." >&2
@@ -67,7 +67,7 @@ echo "[6/7] Service systemd ($SERVICE_NAME)..."
 sed -e "s#/opt/geviro-dropbot#${APP_DIR}#g" \
     -e "s/^User=.*/User=${APP_USER}/" \
     -e "s/^Group=.*/Group=${APP_USER}/" \
-    "$APP_DIR/deploy/bot-service.service" > "/etc/systemd/system/${SERVICE_NAME}.service"
+    "$APP_DIR/deploy/geviro-dropbot.service" > "/etc/systemd/system/${SERVICE_NAME}.service"
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
 
