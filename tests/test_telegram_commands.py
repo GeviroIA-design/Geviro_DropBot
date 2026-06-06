@@ -31,7 +31,7 @@ class TestTelegramCommands(unittest.TestCase):
         return self.router.dispatch(cmd, list(args), user_id=1)
 
     def test_ping(self):
-        self.assertEqual(self.d("ping"), "pong")
+        self.assertIn("pong", self.d("ping"))
 
     def test_unknown_command(self):
         self.assertIn("inconnue", self.d("nope").lower())
@@ -43,17 +43,17 @@ class TestTelegramCommands(unittest.TestCase):
 
     def test_status_running(self):
         out = self.d("status")
-        self.assertIn("STATUS", out)
-        self.assertIn("running", out)
+        self.assertIn("ÉTAT", out)
+        self.assertIn("actif", out)
 
     def test_health_has_status(self):
         out = self.d("health")
-        self.assertTrue(out.startswith("HEALTH:"))
+        self.assertTrue(out.startswith("SANTÉ"))
 
     def test_pause_resume(self):
         self.d("pause")
         self.assertTrue(self.sup.service_state.is_paused())
-        self.assertIn("paused", self.d("status"))
+        self.assertIn("en pause", self.d("status"))
         self.d("resume")
         self.assertFalse(self.sup.service_state.is_paused())
 
@@ -63,18 +63,18 @@ class TestTelegramCommands(unittest.TestCase):
         self.assertFalse(self.sup.service_state.is_safe_mode())
         out2 = self.d("safe_mode_on", "confirm")
         self.assertTrue(self.sup.service_state.is_safe_mode())
-        self.assertIn("SAFE MODE", out2)
+        self.assertIn("MODE SÉCURITÉ", out2)
 
     def test_restart_failed_requires_confirm(self):
         out = self.d("restart_failed_jobs")
         self.assertIn("Confirmez", out)
 
     def test_ack_incident_usage(self):
-        self.assertIn("Usage", self.d("ack_incident"))
+        self.assertIn("Utilisation", self.d("ack_incident"))
 
     def test_scan_now_then_lastscan_and_tops(self):
         out = self.d("run_scan_now")
-        self.assertIn("job #", out)
+        self.assertIn("tâche #", out)
         # exécute le scan de façon synchrone via un worker
         processed = self.sup.workers[0].run_once(now=self.clk())
         self.assertTrue(processed)
@@ -82,9 +82,9 @@ class TestTelegramCommands(unittest.TestCase):
         self.assertEqual(counts.get("success", 0), 1)
 
         last = self.d("lastscan")
-        self.assertIn("LAST SCAN", last)
+        self.assertIn("DERNIER SCAN", last)
         tops = self.d("tops")
-        self.assertIn("score=", tops)
+        self.assertIn("score :", tops)
 
     def test_metrics_after_scan(self):
         self.d("run_scan_now")
@@ -95,7 +95,7 @@ class TestTelegramCommands(unittest.TestCase):
 
     def test_queue_command(self):
         out = self.d("queue")
-        self.assertIn("QUEUE", out)
+        self.assertIn("FILE D'ATTENTE", out)
 
 
 if __name__ == "__main__":

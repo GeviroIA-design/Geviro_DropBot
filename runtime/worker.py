@@ -64,7 +64,7 @@ class Worker:
             self.queue.mark_retrying(
                 job["id"],
                 scheduled_at=now + breaker.recovery_timeout,
-                error="circuit_open",
+                error="coupe-circuit ouvert",
                 attempts=job["attempts"],
             )
             self.metrics.incr("jobs_circuit_skipped")
@@ -73,12 +73,13 @@ class Worker:
         handler = self.registry.get(job_type)
         if handler is None:
             self.queue.mark_dead_letter(
-                job["id"], f"no handler for type '{job_type}'", attempts
+                job["id"], f"aucun gestionnaire pour le type '{job_type}'",
+                attempts,
             )
             self.incidents.record(
                 IncidentSeverity.WARNING.value,
                 "worker",
-                f"no handler for job type '{job_type}'",
+                f"aucun gestionnaire pour le type de tâche '{job_type}'",
             )
             return True
 
@@ -106,7 +107,7 @@ class Worker:
                 self.alerts.raise_alert(
                     IncidentSeverity.CRITICAL.value,
                     job_type,
-                    f"job '{job['name']}' dead-letter after "
-                    f"{attempts} attempts: {err}",
+                    f"tâche '{job['name']}' abandonnée après "
+                    f"{attempts} essais : {err}",
                 )
         return True

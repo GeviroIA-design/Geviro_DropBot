@@ -14,6 +14,14 @@ from utils.logger import get_logger
 
 log = get_logger("executor")
 
+# Traduction des statuts pour les messages utilisateur.
+_STATUS_FR = {
+    "pending": "en attente",
+    "listed": "déjà mise en vente",
+    "rejected": "rejetée",
+    "failed": "en échec",
+}
+
 
 class ResaleExecutor:
     def __init__(
@@ -36,35 +44,39 @@ class ResaleExecutor:
         self.max_listings_per_day = max_listings_per_day
         self.clock = clock
 
+    def _already(self, proposal_id: int, status: str) -> str:
+        return (f"Proposition #{proposal_id} : statut "
+                f"« {_STATUS_FR.get(status, status)} » (action impossible).")
+
     def reject(self, proposal_id: int, admin_id) -> Tuple[bool, str]:
         p = self.proposals.get(proposal_id)
         if p is None:
             return False, f"Proposition #{proposal_id} introuvable."
         if p["status"] != PENDING:
-            return False, f"Proposition #{proposal_id} deja {p['status']}."
+            return False, self._already(proposal_id, p["status"])
         self.proposals.set_status(proposal_id, REJECTED, decided_by=admin_id)
-        return True, f"Proposition #{proposal_id} rejetee."
+        return True, f"Proposition #{proposal_id} rejetée."
 
     def approve(self, proposal_id: int, admin_id) -> Tuple[bool, str]:
         p = self.proposals.get(proposal_id)
         if p is None:
             return False, f"Proposition #{proposal_id} introuvable."
         if p["status"] != PENDING:
-            return False, f"Proposition #{proposal_id} deja {p['status']}."
+            return False, self._already(proposal_id, p["status"])
 
         # --- GARDE-FOUS ---
         if self.service_state.is_safe_mode():
-            return False, ("SAFE MODE actif (kill switch) : aucune mise en "
-                          "vente. Faites /safe_mode_off d'abord.")
+            return False, ("MODE SÉCURITÉ actif (arrêt d'urgence) : aucune mise "
+                          "en vente. Faites d'abord /safe_mode_off.")
         if p["margin_per_sale"] < self.min_margin_eur:
             return False, (
-                f"Refuse : marge {p['margin_per_sale']:.2f} EUR < minimum "
+                f"Refusé : marge {p['margin_per_sale']:.2f} EUR < minimum "
                 f"{self.min_margin_eur:.2f} EUR/vente."
             )
         day_ago = self.clock() - 86400.0
         if self.proposals.listed_since(day_ago) >= self.max_listings_per_day:
             return False, (
-                f"Refuse : quota de {self.max_listings_per_day} mises en vente "
+                f"Refusé : quota de {self.max_listings_per_day} mises en vente "
                 f"/ 24h atteint."
             )
 
@@ -77,15 +89,15 @@ class ResaleExecutor:
             )
             self.incidents.record(
                 IncidentSeverity.CRITICAL.value, "executor",
-                f"echec mise en vente proposition #{proposal_id}: {exc}",
+                f"échec de la mise en vente proposition #{proposal_id} : {exc}",
             )
-            return False, f"Echec de la mise en vente : {exc}"
+            return False, f"Échec de la mise en vente : {exc}"
 
         self.proposals.set_listed(proposal_id, self.channel.name, ref, admin_id)
         self.metrics.incr("listings_published")
-        mode = "REELLE" if getattr(self.channel, "real", False) else "SIMULEE"
+        mode = "RÉELLE" if getattr(self.channel, "real", False) else "SIMULÉE"
         return True, (
             f"Mise en vente {mode} : #{proposal_id} ({p['name']}) sur "
-            f"{self.channel.name} a {p['sell_price']:.2f} EUR "
-            f"(marge +{p['margin_per_sale']:.2f}/vente). ref={ref}"
+            f"« {self.channel.name} » à {p['sell_price']:.2f} EUR "
+            f"(marge +{p['margin_per_sale']:.2f}/vente). réf {ref}"
         )

@@ -76,7 +76,7 @@ class TestResaleProposals(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(self.sup.proposals.get(pid)["status"], "listed")
         self.assertEqual(self.sup.metrics.get("listings_published"), 1.0)
-        self.assertIn("SIMULEE", msg)
+        self.assertIn("SIMULÉE", msg)
         self.assertEqual(len(self.sup.list_listings()), 1)
 
     def test_reject(self):
@@ -92,7 +92,7 @@ class TestResaleProposals(unittest.TestCase):
         self.sup.safe_mode_on()
         ok, msg = self.sup.approve_proposal(pid, admin_id=1)
         self.assertFalse(ok)
-        self.assertIn("SAFE MODE", msg)
+        self.assertIn("MODE SÉCURITÉ", msg)
         self.assertEqual(self.sup.proposals.get(pid)["status"], "pending")
 
     def test_min_margin_blocks_approval(self):

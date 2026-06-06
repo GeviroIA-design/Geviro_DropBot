@@ -20,15 +20,15 @@ def cmd_start(sup, args, user_id) -> str:
 
 
 def cmd_help(sup, args, user_id) -> str:
-    lines = ["COMMANDES"]
+    lines = ["COMMANDES DISPONIBLES"]
     for name, spec in COMMANDS.items():
-        flag = " (confirm)" if spec["confirm"] else ""
+        flag = " (confirmation requise)" if spec["confirm"] else ""
         lines.append(f"/{name}{flag} — {spec['help']}")
     return "\n".join(lines)
 
 
 def cmd_ping(sup, args, user_id) -> str:
-    return "pong"
+    return "pong (le bot est en ligne)"
 
 
 def cmd_status(sup, args, user_id) -> str:
@@ -71,60 +71,60 @@ def cmd_watchdog(sup, args, user_id) -> str:
 
 def cmd_pause(sup, args, user_id) -> str:
     sup.pause()
-    return "Service EN PAUSE. Les workers ne prennent plus de jobs."
+    return "Service EN PAUSE. Les processus ne prennent plus de tâches."
 
 
 def cmd_resume(sup, args, user_id) -> str:
     sup.resume()
-    return "Service REPRIS. Mode running."
+    return "Service REPRIS. Mode actif."
 
 
 def cmd_safe_mode_on(sup, args, user_id) -> str:
     sup.safe_mode_on()
-    return "SAFE MODE activé. Exécution suspendue, service vivant."
+    return "MODE SÉCURITÉ activé. Exécution suspendue, le service reste vivant."
 
 
 def cmd_safe_mode_off(sup, args, user_id) -> str:
     sup.safe_mode_off()
-    return "SAFE MODE désactivé. Reprise normale."
+    return "MODE SÉCURITÉ désactivé. Reprise normale."
 
 
 def cmd_restart_failed_jobs(sup, args, user_id) -> str:
     n = sup.restart_failed_jobs()
-    return f"{n} job(s) failed/dead_letter remis en file."
+    return f"{n} tâche(s) échouée(s)/abandonnée(s) remise(s) en file."
 
 
 def cmd_run_scan_now(sup, args, user_id) -> str:
     job_id = sup.run_scan_now()
-    return f"Scan enfilé (job #{job_id})."
+    return f"Analyse lancée (tâche #{job_id})."
 
 
 def cmd_run_export_now(sup, args, user_id) -> str:
     job_id = sup.run_export_now()
-    return f"Export enfilé (job #{job_id})."
+    return f"Export lancé (tâche #{job_id})."
 
 
 def cmd_reload_config(sup, args, user_id) -> str:
     changed = sup.reload_config()
-    body = ", ".join(f"{k}={v}" for k, v in changed.items()) or "aucun"
-    return f"Config rechargée. {body}"
+    body = ", ".join(f"{k}={v}" for k, v in changed.items()) or "aucun changement"
+    return f"Configuration rechargée. {body}"
 
 
 def cmd_tail_logs(sup, args, user_id) -> str:
     n = _int_arg(args, 0, settings.tail_log_lines)
     lines = sup.tail_logs(n)
     if not lines:
-        return "LOGS\n(vide)"
-    return "LOGS (tail)\n" + "\n".join(lines)
+        return "JOURNAUX\n(vide)"
+    return "JOURNAUX (dernières lignes)\n" + "\n".join(lines)
 
 
 def cmd_ack_incident(sup, args, user_id) -> str:
     if not args:
-        return "Usage: /ack_incident <id>"
+        return "Utilisation : /ack_incident <id>"
     try:
         incident_id = int(args[0])
     except ValueError:
-        return "id invalide. Usage: /ack_incident <id>"
+        return "id invalide. Utilisation : /ack_incident <id>"
     ok = sup.ack_incident(incident_id, user_id)
     return f"Incident #{incident_id} acquitté." if ok else \
         f"Incident #{incident_id} introuvable ou déjà acquitté."
@@ -140,22 +140,22 @@ def cmd_listings(sup, args, user_id) -> str:
 
 def cmd_approve(sup, args, user_id) -> str:
     if not args:
-        return "Usage: /approve <id>"
+        return "Utilisation : /approve <id>"
     try:
         pid = int(args[0])
     except ValueError:
-        return "id invalide. Usage: /approve <id>"
+        return "id invalide. Utilisation : /approve <id>"
     _ok, msg = sup.approve_proposal(pid, user_id)
     return msg
 
 
 def cmd_reject(sup, args, user_id) -> str:
     if not args:
-        return "Usage: /reject <id>"
+        return "Utilisation : /reject <id>"
     try:
         pid = int(args[0])
     except ValueError:
-        return "id invalide. Usage: /reject <id>"
+        return "id invalide. Utilisation : /reject <id>"
     _ok, msg = sup.reject_proposal(pid, user_id)
     return msg
 
@@ -177,25 +177,25 @@ COMMANDS: Dict[str, Dict] = {
     "status": {"func": cmd_status, "help": "état du service", "confirm": False},
     "health": {"func": cmd_health, "help": "diagnostic santé", "confirm": False},
     "metrics": {"func": cmd_metrics, "help": "compteurs", "confirm": False},
-    "jobs": {"func": cmd_jobs, "help": "derniers jobs [n]", "confirm": False},
-    "queue": {"func": cmd_queue, "help": "états de la file", "confirm": False},
+    "jobs": {"func": cmd_jobs, "help": "dernières tâches [n]", "confirm": False},
+    "queue": {"func": cmd_queue, "help": "états de la file d'attente", "confirm": False},
     "incidents": {"func": cmd_incidents, "help": "incidents récents [n]", "confirm": False},
-    "lastscan": {"func": cmd_lastscan, "help": "dernier scan", "confirm": False},
+    "lastscan": {"func": cmd_lastscan, "help": "résumé du dernier scan", "confirm": False},
     "tops": {"func": cmd_tops, "help": "meilleurs produits du dernier scan", "confirm": False},
     "proposals": {"func": cmd_proposals, "help": "propositions de revente en attente [n]", "confirm": False},
-    "approve": {"func": cmd_approve, "help": "valide -> met en vente une proposition <id>", "confirm": False},
+    "approve": {"func": cmd_approve, "help": "valide et met en vente une proposition <id>", "confirm": False},
     "reject": {"func": cmd_reject, "help": "refuse une proposition <id>", "confirm": False},
-    "listings": {"func": cmd_listings, "help": "produits mis en vente [n]", "confirm": False},
-    "watchdog": {"func": cmd_watchdog, "help": "anomalies détectées", "confirm": False},
-    "pause": {"func": cmd_pause, "help": "met les workers en pause", "confirm": False},
+    "listings": {"func": cmd_listings, "help": "produits actuellement mis en vente [n]", "confirm": False},
+    "watchdog": {"func": cmd_watchdog, "help": "anomalies de surveillance détectées", "confirm": False},
+    "pause": {"func": cmd_pause, "help": "met les processus de travail en pause", "confirm": False},
     "resume": {"func": cmd_resume, "help": "reprend l'exécution", "confirm": False},
-    "safe_mode_on": {"func": cmd_safe_mode_on, "help": "active le safe mode", "confirm": True},
-    "safe_mode_off": {"func": cmd_safe_mode_off, "help": "désactive le safe mode", "confirm": False},
-    "restart_failed_jobs": {"func": cmd_restart_failed_jobs, "help": "relance les jobs échoués", "confirm": True},
-    "run_scan_now": {"func": cmd_run_scan_now, "help": "lance un scan immédiat", "confirm": False},
+    "safe_mode_on": {"func": cmd_safe_mode_on, "help": "active le mode sécurité", "confirm": True},
+    "safe_mode_off": {"func": cmd_safe_mode_off, "help": "désactive le mode sécurité", "confirm": False},
+    "restart_failed_jobs": {"func": cmd_restart_failed_jobs, "help": "relance les tâches échouées", "confirm": True},
+    "run_scan_now": {"func": cmd_run_scan_now, "help": "lance une analyse immédiate", "confirm": False},
     "run_export_now": {"func": cmd_run_export_now, "help": "lance un export immédiat", "confirm": False},
-    "reload_config": {"func": cmd_reload_config, "help": "recharge la config (.env)", "confirm": False},
-    "tail_logs": {"func": cmd_tail_logs, "help": "dernières lignes de log [n]", "confirm": False},
+    "reload_config": {"func": cmd_reload_config, "help": "recharge la configuration (.env)", "confirm": False},
+    "tail_logs": {"func": cmd_tail_logs, "help": "dernières lignes de journal [n]", "confirm": False},
     "ack_incident": {"func": cmd_ack_incident, "help": "acquitte un incident <id>", "confirm": False},
 }
 

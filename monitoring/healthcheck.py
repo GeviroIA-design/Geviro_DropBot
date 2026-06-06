@@ -47,16 +47,16 @@ def compute_health(
     if open_breakers:
         checks.append(
             {"name": "circuit_breakers", "ok": False,
-             "detail": "open: " + ", ".join(open_breakers)}
+             "detail": "ouverts : " + ", ".join(open_breakers)}
         )
         status = _worst(status, HealthStatus.DEGRADED)
     else:
-        checks.append({"name": "circuit_breakers", "ok": True, "detail": "all closed"})
+        checks.append({"name": "circuit_breakers", "ok": True, "detail": "tous fermés"})
 
     # Dead-letter
     if dead_letter_count > 0:
         checks.append(
-            {"name": "dead_letter", "ok": False, "detail": f"{dead_letter_count} jobs"}
+            {"name": "dead_letter", "ok": False, "detail": f"{dead_letter_count} tâche(s)"}
         )
         status = _worst(status, HealthStatus.DEGRADED)
     else:
@@ -66,23 +66,23 @@ def compute_health(
     if safe_mode or paused:
         checks.append(
             {"name": "mode", "ok": False,
-             "detail": "safe_mode" if safe_mode else "paused"}
+             "detail": "mode sécurité" if safe_mode else "en pause"}
         )
         status = _worst(status, HealthStatus.DEGRADED)
     else:
-        checks.append({"name": "mode", "ok": True, "detail": "running"})
+        checks.append({"name": "mode", "ok": True, "detail": "actif"})
 
     # Fraîcheur du dernier scan
     if last_scan_age is not None and last_scan_age > scan_interval * 3:
         checks.append(
             {"name": "last_scan", "ok": False,
-             "detail": f"{last_scan_age:.0f}s old"}
+             "detail": f"trop ancien ({last_scan_age:.0f}s)"}
         )
         status = _worst(status, HealthStatus.DEGRADED)
     else:
         checks.append(
             {"name": "last_scan", "ok": True,
-             "detail": "n/a" if last_scan_age is None else f"{last_scan_age:.0f}s"}
+             "detail": "n/d" if last_scan_age is None else f"{last_scan_age:.0f}s"}
         )
 
     # Incidents ouverts (informatif, ne dégrade pas seul)

@@ -1,6 +1,42 @@
-"""Mise en forme compacte des réponses Telegram + masquage de secrets."""
+"""Mise en forme compacte des réponses Telegram (en français) + masquage.
+
+Les valeurs internes (états de job, décisions, mode...) restent en anglais
+dans le code/la base ; elles sont TRADUITES ici, uniquement à l'affichage.
+"""
 import time
 from typing import Any, Dict, List, Optional
+
+# --- Traductions d'affichage ---
+JOB_STATE_FR = {
+    "pending": "en attente",
+    "running": "en cours",
+    "success": "réussie",
+    "failed": "échouée",
+    "retrying": "nouvel essai",
+    "dead_letter": "abandonnée",
+    "cancelled": "annulée",
+}
+DECISION_FR = {
+    "BUY": "ACHETER",
+    "TEST": "TESTER",
+    "WATCHLIST": "À SURVEILLER",
+    "REJECT": "REJETER",
+}
+HEALTH_FR = {"ok": "OK", "degraded": "DÉGRADÉ", "down": "HORS SERVICE"}
+MODE_FR = {"running": "actif", "paused": "en pause", "safe_mode": "mode sécurité"}
+SEVERITY_FR = {"info": "info", "warning": "avertissement", "critical": "critique"}
+CHECK_FR = {
+    "heartbeat": "battement de cœur",
+    "circuit_breakers": "coupe-circuits",
+    "dead_letter": "tâches abandonnées",
+    "mode": "mode",
+    "last_scan": "dernier scan",
+    "open_incidents": "incidents ouverts",
+}
+
+
+def _t(mapping: dict, key: str) -> str:
+    return mapping.get(key, key)
 
 
 def mask_secret(value: str) -> str:
@@ -27,20 +63,112 @@ def _ago(ts: Optional[float], now: Optional[float] = None) -> str:
 
 def fmt_status(s: Dict[str, Any]) -> str:
     uptime = s.get("uptime_s")
-    uptime_str = _fmt_duration(uptime) if uptime is not None else "n/a"
+    uptime_str = _fmt_duration(uptime) if uptime is not None else "n/d"
     counts = s.get("queue_counts", {})
-    counts_str = ", ".join(f"{k}={v}" for k, v in counts.items()) or "vide"
+    counts_str = ", ".join(
+        f"{_t(JOB_STATE_FR, k)}={v}" for k, v in counts.items()
+    ) or "vide"
     return (
-        f"STATUS\n"
-        f"- mode: {s.get('mode')}\n"
-        f"- uptime: {uptime_str}\n"
-        f"- workers: {s.get('workers')}\n"
-        f"- file: {counts_str}\n"
-        f"- dernier scan: il y a {_ago(s.get('last_scan_ts'))}\n"
-        f"- dernier export: il y a {_ago(s.get('last_export_ts'))}\n"
-        f"- incidents ouverts: {s.get('open_incidents')}\n"
-        f"- propositions en attente: {s.get('pending_proposals', 0)}"
+        f"ÉTAT DU SERVICE\n"
+        f"- mode : {_t(MODE_FR, s.get('mode'))}\n"
+        f"- en service depuis : {uptime_str}\n"
+        f"- processus de travail : {s.get('workers')}\n"
+        f"- file d'attente : {counts_str}\n"
+        f"- dernier scan : il y a {_ago(s.get('last_scan_ts'))}\n"
+        f"- dernier export : il y a {_ago(s.get('last_export_ts'))}\n"
+        f"- incidents ouverts : {s.get('open_incidents')}\n"
+        f"- propositions en attente : {s.get('pending_proposals', 0)}"
     )
+
+
+def fmt_health(h: Dict[str, Any]) -> str:
+    lines = [f"SANTÉ : {_t(HEALTH_FR, h.get('status', '?'))}"]
+    for c in h.get("checks", []):
+        mark = "OK" if c.get("ok") else "KO"
+        lines.append(
+            f"- [{mark}] {_t(CHECK_FR, c.get('name'))} : {c.get('detail')}"
+        )
+    return "\n".join(lines)
+
+
+def fmt_metrics(m: Dict[str, float]) -> str:
+    if not m:
+        return "COMPTEURS\n(aucun)"
+    lines = ["COMPTEURS"]
+    for k in sorted(m):
+        lines.append(f"- {k} : {_num(m[k])}")
+    return "\n".join(lines)
+
+
+def fmt_jobs(jobs: List[Dict[str, Any]]) -> str:
+    if not jobs:
+        return "TÂCHES\n(aucune)"
+    lines = ["TÂCHES (récentes)"]
+    for j in jobs:
+        err = f" err={_short(j.get('last_error'))}" if j.get("last_error") else ""
+        lines.append(
+            f"- #{j['id']} {j['name']} [{_t(JOB_STATE_FR, j['state'])}] "
+            f"essais={j.get('attempts', 0)}{err}"
+        )
+    return "\n".join(lines)
+
+
+def fmt_queue(counts: Dict[str, int]) -> str:
+    if not counts:
+        return "FILE D'ATTENTE\n(vide)"
+    lines = ["FILE D'ATTENTE"]
+    for state in sorted(counts):
+        lines.append(f"- {_t(JOB_STATE_FR, state)} : {counts[state]}")
+    return "\n".join(lines)
+
+
+def fmt_incidents(incidents: List[Dict[str, Any]]) -> str:
+    if not incidents:
+        return "INCIDENTS\n(aucun)"
+    lines = ["INCIDENTS (récents)"]
+    for i in incidents:
+        ack = "acquitté" if i.get("acknowledged") else "OUVERT"
+        lines.append(
+            f"- #{i['id']} [{_t(SEVERITY_FR, i['severity'])}/{ack}] "
+            f"{i['source']} : {_short(i['message'])} "
+            f"(il y a {_ago(i['created_at'])})"
+        )
+    return "\n".join(lines)
+
+
+def fmt_lastscan(scan: Optional[Dict[str, Any]]) -> str:
+    if not scan:
+        return "DERNIER SCAN\n(aucun scan effectué)"
+    summary = scan.get("summary", {})
+    summary_str = ", ".join(
+        f"{_t(DECISION_FR, k)}={v}" for k, v in summary.items()
+    ) or "n/d"
+    return (
+        f"DERNIER SCAN (il y a {_ago(scan.get('ts'))})\n"
+        f"- produits analysés : {scan.get('n_products')}\n"
+        f"- décisions : {summary_str}"
+    )
+
+
+def fmt_tops(scan: Optional[Dict[str, Any]], limit: int = 5) -> str:
+    if not scan or not scan.get("tops"):
+        return "MEILLEURS PRODUITS\n(aucun scan disponible)"
+    lines = ["MEILLEURS PRODUITS"]
+    for t in scan["tops"][:limit]:
+        lines.append(
+            f"- {t.get('product_id')} {t.get('name')} "
+            f"score : {t.get('final_score')} -> {_t(DECISION_FR, t.get('decision'))}"
+        )
+    return "\n".join(lines)
+
+
+def fmt_watchdog(anomalies: List[Dict[str, Any]]) -> str:
+    if not anomalies:
+        return "SURVEILLANCE\n- aucune anomalie"
+    lines = ["SURVEILLANCE"]
+    for a in anomalies:
+        lines.append(f"- {a.get('detail')}")
+    return "\n".join(lines)
 
 
 def fmt_proposals(props: List[Dict[str, Any]]) -> str:
@@ -64,93 +192,8 @@ def fmt_listings(listings: List[Dict[str, Any]]) -> str:
         lines.append(
             f"- #{p['id']} {p['name']} [{p.get('channel')}] | "
             f"prix {p['sell_price']:.2f} EUR | marge +{p['margin_per_sale']:.2f}"
-            f"/vente | ref {p.get('listing_ref')}"
+            f"/vente | réf {p.get('listing_ref')}"
         )
-    return "\n".join(lines)
-
-
-def fmt_health(h: Dict[str, Any]) -> str:
-    lines = [f"HEALTH: {h.get('status', '?').upper()}"]
-    for c in h.get("checks", []):
-        mark = "OK " if c.get("ok") else "KO "
-        lines.append(f"- [{mark}] {c.get('name')}: {c.get('detail')}")
-    return "\n".join(lines)
-
-
-def fmt_metrics(m: Dict[str, float]) -> str:
-    if not m:
-        return "METRICS\n(aucune métrique)"
-    lines = ["METRICS"]
-    for k in sorted(m):
-        lines.append(f"- {k}: {_num(m[k])}")
-    return "\n".join(lines)
-
-
-def fmt_jobs(jobs: List[Dict[str, Any]]) -> str:
-    if not jobs:
-        return "JOBS\n(aucun job)"
-    lines = ["JOBS (récents)"]
-    for j in jobs:
-        err = f" err={_short(j.get('last_error'))}" if j.get("last_error") else ""
-        lines.append(
-            f"- #{j['id']} {j['name']} [{j['state']}] "
-            f"att={j.get('attempts', 0)}{err}"
-        )
-    return "\n".join(lines)
-
-
-def fmt_queue(counts: Dict[str, int]) -> str:
-    if not counts:
-        return "QUEUE\n(vide)"
-    lines = ["QUEUE"]
-    for state in sorted(counts):
-        lines.append(f"- {state}: {counts[state]}")
-    return "\n".join(lines)
-
-
-def fmt_incidents(incidents: List[Dict[str, Any]]) -> str:
-    if not incidents:
-        return "INCIDENTS\n(aucun)"
-    lines = ["INCIDENTS (récents)"]
-    for i in incidents:
-        ack = "ack" if i.get("acknowledged") else "OPEN"
-        lines.append(
-            f"- #{i['id']} [{i['severity']}/{ack}] {i['source']}: "
-            f"{_short(i['message'])} (il y a {_ago(i['created_at'])})"
-        )
-    return "\n".join(lines)
-
-
-def fmt_lastscan(scan: Optional[Dict[str, Any]]) -> str:
-    if not scan:
-        return "LAST SCAN\n(aucun scan effectué)"
-    summary = scan.get("summary", {})
-    summary_str = ", ".join(f"{k}={v}" for k, v in summary.items()) or "n/a"
-    return (
-        f"LAST SCAN (il y a {_ago(scan.get('ts'))})\n"
-        f"- produits: {scan.get('n_products')}\n"
-        f"- décisions: {summary_str}"
-    )
-
-
-def fmt_tops(scan: Optional[Dict[str, Any]], limit: int = 5) -> str:
-    if not scan or not scan.get("tops"):
-        return "TOPS\n(aucun scan disponible)"
-    lines = ["TOPS"]
-    for t in scan["tops"][:limit]:
-        lines.append(
-            f"- {t.get('product_id')} {t.get('name')} "
-            f"score={t.get('final_score')} -> {t.get('decision')}"
-        )
-    return "\n".join(lines)
-
-
-def fmt_watchdog(anomalies: List[Dict[str, Any]]) -> str:
-    if not anomalies:
-        return "WATCHDOG\n- aucune anomalie"
-    lines = ["WATCHDOG"]
-    for a in anomalies:
-        lines.append(f"- [{a.get('type')}] {a.get('detail')}")
     return "\n".join(lines)
 
 

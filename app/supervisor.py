@@ -208,10 +208,10 @@ class Supervisor:
         chaque tick) -> permet l'anti-spam de l'AlertManager si un worker
         meurt réellement."""
         if anomaly["type"] == "stale_heartbeat":
-            return f"heartbeat '{anomaly['component']}' perime"
+            return f"battement de coeur '{anomaly['component']}' perime"
         if anomaly["type"] == "stuck_job":
-            return f"job #{anomaly['job_id']} ({anomaly['name']}) bloque"
-        return anomaly.get("detail", "anomalie watchdog")
+            return f"tache #{anomaly['job_id']} ({anomaly['name']}) bloquee"
+        return anomaly.get("detail", "anomalie de surveillance")
 
     # ------------------------------------------------------------------ #
     # Handlers de jobs (appellent le coeur scoring existant)
@@ -382,7 +382,7 @@ class Supervisor:
     def safe_mode_on(self) -> None:
         self.service_state.set_safe_mode(True)
         self.incidents.record(
-            IncidentSeverity.WARNING.value, "admin", "safe mode activé"
+            IncidentSeverity.WARNING.value, "admin", "mode sécurité activé"
         )
         log.warning("safe mode ON")
 

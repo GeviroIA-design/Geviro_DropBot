@@ -34,8 +34,8 @@ def recover_on_start(
     incidents.record(
         IncidentSeverity.INFO.value,
         "recovery",
-        f"service start: requeued={requeued}, "
-        f"safe_mode={service_state.is_safe_mode()}, "
-        f"paused={service_state.is_paused()}",
+        f"démarrage du service : {requeued} tâche(s) réenfilée(s), "
+        f"mode sécurité={service_state.is_safe_mode()}, "
+        f"pause={service_state.is_paused()}",
     )
     return summary

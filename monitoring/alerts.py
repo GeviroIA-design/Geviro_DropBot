@@ -52,8 +52,15 @@ class AlertManager:
         incident_id = self.incidents.record(severity, source, message)
         log.warning(f"[{severity}] {source}: {message}")
         if self.notify and self._should_notify(severity, f"{source}:{message}"):
+            sev_fr = {
+                "info": "INFO", "warning": "AVERTISSEMENT", "critical": "CRITIQUE",
+            }.get(severity, severity.upper())
+            src_fr = {
+                "watchdog": "surveillance", "executor": "exécution",
+                "admin": "admin", "recovery": "redémarrage", "worker": "ouvrier",
+            }.get(source, source)
             try:
-                self.notify(f"[{severity.upper()}] {source}: {message}")
+                self.notify(f"[{sev_fr}] {src_fr} : {message}")
             except Exception as exc:  # noqa: BLE001
                 log.warning(f"alert notify failed: {exc}")
         return incident_id
