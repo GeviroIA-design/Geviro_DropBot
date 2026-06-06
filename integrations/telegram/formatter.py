@@ -46,12 +46,25 @@ def fmt_status(s: Dict[str, Any]) -> str:
 def fmt_proposals(props: List[Dict[str, Any]]) -> str:
     if not props:
         return "PROPOSITIONS\n(aucune en attente)"
-    lines = ["PROPOSITIONS EN ATTENTE"]
+    lines = ["PROPOSITIONS DE REVENTE EN ATTENTE"]
     for p in props:
         lines.append(
-            f"- #{p['id']} {p['name']} | qte {p['quantity']} | "
-            f"cout {p['order_cost']:.2f} EUR | gain +{p['expected_gain']:.2f} EUR"
+            f"- #{p['id']} {p['name']} | prix {p['sell_price']:.2f} EUR | "
+            f"marge +{p['margin_per_sale']:.2f} EUR/vente"
             f"\n    /approve {p['id']}   |   /reject {p['id']}"
+        )
+    return "\n".join(lines)
+
+
+def fmt_listings(listings: List[Dict[str, Any]]) -> str:
+    if not listings:
+        return "MISES EN VENTE\n(aucune)"
+    lines = ["MISES EN VENTE"]
+    for p in listings:
+        lines.append(
+            f"- #{p['id']} {p['name']} [{p.get('channel')}] | "
+            f"prix {p['sell_price']:.2f} EUR | marge +{p['margin_per_sale']:.2f}"
+            f"/vente | ref {p.get('listing_ref')}"
         )
     return "\n".join(lines)
 

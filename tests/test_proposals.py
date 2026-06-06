@@ -14,29 +14,26 @@ class FakeClock:
         return self.t
 
 
-def _product(net_profit=8.0, net_margin=0.32, **kw):
+def _product(sell_price=25.0, purchase_cost=5.0, shipping_cost=2.0, **kw):
     base = dict(
         product_id="P1", name="Widget", category="home", niche="x",
-        purchase_cost=5.0, estimated_selling_price=25.0, shipping_cost=2.0,
-        ad_cost_estimate=3.0, demand_volume=10000, demand_growth=0.4,
-        short_term_momentum=0.5, mid_term_momentum=0.3,
+        purchase_cost=purchase_cost, estimated_selling_price=sell_price,
+        shipping_cost=shipping_cost, ad_cost_estimate=3.0, demand_volume=10000,
+        demand_growth=0.4, short_term_momentum=0.5, mid_term_momentum=0.3,
         competition_level=0.3, market_saturation=0.3, average_rating=4.6,
         review_count=500, shipping_delay_days=9, supplier_reliability=0.9,
         estimated_return_rate=0.04, seasonality_score=0.3, demand_stability=0.8,
         virality_score=0.4, durability_score=0.75,
     )
     base.update(kw)
-    p = Product(**base)
-    p.net_profit = net_profit
-    p.net_margin = net_margin
-    return p
+    return Product(**base)
 
 
 def _buy(pid="P1", score=80.0):
     return Scorecard(product_id=pid, final_score=score, decision="BUY")
 
 
-class TestProposals(unittest.TestCase):
+class TestResaleProposals(unittest.TestCase):
     def setUp(self):
         self.clk = FakeClock()
         self.store = Store(":memory:")
@@ -46,20 +43,25 @@ class TestProposals(unittest.TestCase):
     def tearDown(self):
         self.store.close()
 
-    def test_generates_for_buy_with_positive_gain(self):
+    def test_generates_resale_proposal_with_positive_margin(self):
+        # sell 25, supplier 7, fee 12% = 3 -> margin = 15 >= min(3)
         self.sup._generate_proposals([_product()], [_buy()])
         props = self.sup.list_proposals()
         self.assertEqual(len(props), 1)
         self.assertEqual(props[0]["product_id"], "P1")
-        self.assertGreater(props[0]["expected_gain"], 0)
+        self.assertGreater(props[0]["margin_per_sale"], 0)
+        self.assertAlmostEqual(props[0]["platform_fee"], 3.0, places=2)
+
+    def test_no_proposal_when_margin_below_min(self):
+        # sell 8, supplier 7, fee ~0.96 -> margin ~0.04 < min(3)
+        self.sup._generate_proposals(
+            [_product(sell_price=8.0)], [_buy()]
+        )
+        self.assertEqual(self.sup.list_proposals(), [])
 
     def test_no_proposal_for_non_buy(self):
         sc = Scorecard(product_id="P1", final_score=50.0, decision="WATCHLIST")
         self.sup._generate_proposals([_product()], [sc])
-        self.assertEqual(self.sup.list_proposals(), [])
-
-    def test_no_proposal_when_gain_not_positive(self):
-        self.sup._generate_proposals([_product(net_profit=-1.0)], [_buy()])
         self.assertEqual(self.sup.list_proposals(), [])
 
     def test_dedup_same_product(self):
@@ -67,14 +69,15 @@ class TestProposals(unittest.TestCase):
         self.sup._generate_proposals([_product()], [_buy()])
         self.assertEqual(len(self.sup.list_proposals()), 1)
 
-    def test_approve_executes_within_limits(self):
+    def test_approve_lists_on_channel(self):
         self.sup._generate_proposals([_product()], [_buy()])
         pid = self.sup.list_proposals()[0]["id"]
         ok, msg = self.sup.approve_proposal(pid, admin_id=1)
         self.assertTrue(ok)
-        self.assertEqual(self.sup.proposals.get(pid)["status"], "executed")
-        self.assertEqual(self.sup.metrics.get("orders_executed"), 1.0)
-        self.assertIn("SIMULEE", msg)  # pas d'API reelle branchee
+        self.assertEqual(self.sup.proposals.get(pid)["status"], "listed")
+        self.assertEqual(self.sup.metrics.get("listings_published"), 1.0)
+        self.assertIn("SIMULEE", msg)
+        self.assertEqual(len(self.sup.list_listings()), 1)
 
     def test_reject(self):
         self.sup._generate_proposals([_product()], [_buy()])
@@ -83,7 +86,7 @@ class TestProposals(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(self.sup.proposals.get(pid)["status"], "rejected")
 
-    def test_safe_mode_blocks_approval(self):
+    def test_safe_mode_blocks_listing(self):
         self.sup._generate_proposals([_product()], [_buy()])
         pid = self.sup.list_proposals()[0]["id"]
         self.sup.safe_mode_on()
@@ -92,29 +95,27 @@ class TestProposals(unittest.TestCase):
         self.assertIn("SAFE MODE", msg)
         self.assertEqual(self.sup.proposals.get(pid)["status"], "pending")
 
-    def test_budget_cap_blocks_approval(self):
+    def test_min_margin_blocks_approval(self):
         pid = self.sup.proposals.create(
-            product_id="PX", name="Cher", quantity=100, unit_cost=50.0,
-            unit_sell_price=80.0, expected_unit_net=20.0, expected_gain=2000.0,
-            order_cost=5000.0, score=90.0,
+            product_id="PX", name="Maigre", supplier_cost=9.0,
+            sell_price=10.0, platform_fee=1.0, margin_per_sale=0.0, score=80.0,
         )
         ok, msg = self.sup.approve_proposal(pid, admin_id=1)
         self.assertFalse(ok)
-        self.assertIn("plafond", msg)
+        self.assertIn("marge", msg.lower())
 
-    def test_daily_quota_enforced(self):
+    def test_daily_listing_quota(self):
+        self.sup.executor.max_listings_per_day = 2
         ids = [
             self.sup.proposals.create(
-                product_id=f"P{i}", name=f"X{i}", quantity=1, unit_cost=10.0,
-                unit_sell_price=20.0, expected_unit_net=5.0, expected_gain=5.0,
-                order_cost=10.0, score=80.0,
+                product_id=f"P{i}", name=f"X{i}", supplier_cost=5.0,
+                sell_price=25.0, platform_fee=3.0, margin_per_sale=17.0,
+                score=80.0,
             )
-            for i in range(self.sup.settings.max_orders_per_day + 1)
+            for i in range(3)
         ]
         results = [self.sup.approve_proposal(pid, 1)[0] for pid in ids]
-        self.assertEqual(
-            results.count(True), self.sup.settings.max_orders_per_day
-        )
+        self.assertEqual(results.count(True), 2)
         self.assertFalse(results[-1])
 
 

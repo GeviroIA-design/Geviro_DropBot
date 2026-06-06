@@ -20,8 +20,9 @@ from monitoring.audit_log import AuditLog
 from monitoring.healthcheck import compute_health
 from monitoring.incident_store import IncidentStore
 from monitoring.metrics_store import MetricsStore
+from integrations.sales.simulated import SimulatedSalesChannel
 from runtime.circuit_breaker import CircuitBreaker
-from runtime.executor import OrderExecutor
+from runtime.executor import ResaleExecutor
 from runtime.job_queue import JobQueue
 from runtime.proposal_store import ProposalStore
 from runtime.recovery import recover_on_start
@@ -73,14 +74,16 @@ class Supervisor:
         # Référence optionnelle vers l'auth Telegram (pour /reload_config)
         self.auth = None
 
-        # Exécution des commandes approuvées, sous garde-fous.
-        # place_order=None => ordre SIMULÉ (aucune dépense réelle) tant
-        # qu'aucune API marketplace n'est branchée.
-        self.executor = OrderExecutor(
+        # Canal de vente (revente). Simulé par défaut ; eBay/Shopify se
+        # brancheront ici via SALES_CHANNEL dès que les clés API seront là.
+        self.sales_channel = self._build_channel(settings.sales_channel)
+
+        # Mise en vente des propositions approuvées, sous garde-fous.
+        self.executor = ResaleExecutor(
             self.proposals, self.metrics, self.incidents, self.service_state,
-            max_eur_per_order=settings.max_eur_per_order,
-            max_orders_per_day=settings.max_orders_per_day,
-            place_order=None,
+            channel=self.sales_channel,
+            min_margin_eur=settings.min_margin_eur,
+            max_listings_per_day=settings.max_listings_per_day,
             clock=clock,
         )
         # Hook de notification des propositions (branché par telegram_admin).
@@ -137,6 +140,16 @@ class Supervisor:
             self.queue, self.service_state, self.incidents,
             self.metrics, self.clock,
         )
+
+    def _build_channel(self, name: str):
+        name = (name or "simulated").lower()
+        # Les vrais canaux (ebay, shopify, ...) seront ajoutés ici quand
+        # leurs clés API seront fournies.
+        if name != "simulated":
+            log.warning(
+                f"canal de vente '{name}' pas encore branche -> simule"
+            )
+        return SimulatedSalesChannel()
 
     def breaker_for(self, job_type: str) -> CircuitBreaker:
         cb = self.breakers.get(job_type)
@@ -234,56 +247,50 @@ class Supervisor:
         self._generate_proposals(products, scorecards)
 
     def _generate_proposals(self, products, scorecards) -> None:
-        """Crée une proposition à gain positif pour chaque produit 'BUY',
-        dans la limite du budget par commande, et la pousse sur Telegram."""
+        """Crée une proposition de REVENTE pour chaque produit 'BUY' dont la
+        marge nette par vente (frais marketplace inclus) dépasse le minimum,
+        puis la pousse sur Telegram. Aucun achat : on propose une mise en vente.
+        """
         prod_by_id = {p.product_id: p for p in products}
         decision_by_id = {s.product_id: s for s in scorecards}
-        qty_default = max(1, self.settings.proposal_quantity)
-        budget = self.settings.max_eur_per_order
+        fee_pct = self.settings.ebay_fee_pct
+        min_margin = self.settings.min_margin_eur
 
         for pid, sc in decision_by_id.items():
             if sc.decision != "BUY":
                 continue
             p = prod_by_id.get(pid)
-            if p is None or p.net_profit <= 0:
+            if p is None:
                 continue
-            unit_cost = round(p.purchase_cost + p.shipping_cost, 2)
-            if unit_cost <= 0 or unit_cost > budget:
-                continue  # même une unité dépasse le plafond
-            qty = min(qty_default, int(budget // unit_cost))
-            if qty < 1:
-                continue
-            expected_gain = round(qty * p.net_profit, 2)
-            if expected_gain <= 0:
+            supplier_cost = round(p.purchase_cost + p.shipping_cost, 2)
+            sell_price = p.estimated_selling_price
+            platform_fee = round(sell_price * fee_pct, 2)
+            margin = round(sell_price - supplier_cost - platform_fee, 2)
+            if margin < min_margin:
                 continue
             if self.proposals.has_pending_for(pid):
                 continue  # déjà proposé, pas de doublon
 
-            order_cost = round(qty * unit_cost, 2)
             prop_id = self.proposals.create(
                 product_id=pid,
                 name=p.name,
-                quantity=qty,
-                unit_cost=unit_cost,
-                unit_sell_price=p.estimated_selling_price,
-                expected_unit_net=round(p.net_profit, 2),
-                expected_gain=expected_gain,
-                order_cost=order_cost,
+                supplier_cost=supplier_cost,
+                sell_price=sell_price,
+                platform_fee=platform_fee,
+                margin_per_sale=margin,
                 score=sc.final_score,
             )
-            self._push_proposal(prop_id, p.name, qty, order_cost,
-                                expected_gain, p.net_margin)
+            self._push_proposal(prop_id, p.name, sell_price, margin)
 
-    def _push_proposal(self, prop_id, name, qty, order_cost, gain, net_margin):
+    def _push_proposal(self, prop_id, name, sell_price, margin):
         if not self.notify:
             return
         msg = (
-            f"PROPOSITION #{prop_id}\n"
+            f"PROPOSITION DE REVENTE #{prop_id}\n"
             f"{name}\n"
-            f"Qte {qty} | cout {order_cost:.2f} EUR | marge nette "
-            f"{net_margin * 100:.0f}%\n"
-            f"GAIN ESTIME : +{gain:.2f} EUR\n"
-            f"-> /approve {prop_id}   ou   /reject {prop_id}"
+            f"Prix de vente conseille : {sell_price:.2f} EUR\n"
+            f"MARGE NETTE / VENTE : +{margin:.2f} EUR (frais inclus)\n"
+            f"-> /approve {prop_id} (mettre en vente)   ou   /reject {prop_id}"
         )
         try:
             self.notify(msg)
@@ -431,10 +438,13 @@ class Supervisor:
     def ack_incident(self, incident_id: int, admin_id) -> bool:
         return self.incidents.ack(incident_id, admin_id)
 
-    # --- propositions d'achat ---
+    # --- propositions de revente ---
     def list_proposals(self, limit: int = 15) -> List[dict]:
         from runtime.proposal_store import PENDING
         return self.proposals.list(status=PENDING, limit=limit)
+
+    def list_listings(self, limit: int = 15) -> List[dict]:
+        return self.proposals.list_listings(limit=limit)
 
     def approve_proposal(self, proposal_id: int, admin_id):
         return self.executor.approve(proposal_id, admin_id)

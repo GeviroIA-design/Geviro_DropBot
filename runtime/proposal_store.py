@@ -1,7 +1,8 @@
-"""Stockage des propositions d'achat (table `proposals`).
+"""Stockage des propositions de REVENTE (table `proposals`).
 
-Une proposition = une opportunité à gain positif que le bot soumet à
-l'admin pour validation Telegram avant toute exécution.
+Une proposition = un produit à marge positive que le bot soumet à l'admin
+pour validation Telegram. Sur /approve, le produit est MIS EN VENTE
+(publié) sur le canal de vente — aucun achat, aucun stock.
 """
 import time
 from typing import Any, Dict, List, Optional
@@ -9,9 +10,8 @@ from typing import Any, Dict, List, Optional
 from runtime.service_state import Store
 
 PENDING = "pending"
-APPROVED = "approved"
+LISTED = "listed"
 REJECTED = "rejected"
-EXECUTED = "executed"
 FAILED = "failed"
 
 
@@ -24,23 +24,19 @@ class ProposalStore:
         self,
         product_id: str,
         name: str,
-        quantity: int,
-        unit_cost: float,
-        unit_sell_price: float,
-        expected_unit_net: float,
-        expected_gain: float,
-        order_cost: float,
+        supplier_cost: float,
+        sell_price: float,
+        platform_fee: float,
+        margin_per_sale: float,
         score: float,
     ) -> int:
         return self.store.execute(
-            "INSERT INTO proposals(product_id, name, quantity, unit_cost, "
-            "unit_sell_price, expected_unit_net, expected_gain, order_cost, "
-            "score, status, created_at) "
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO proposals(product_id, name, supplier_cost, sell_price, "
+            "platform_fee, margin_per_sale, score, status, created_at) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                product_id, name, quantity, unit_cost, unit_sell_price,
-                expected_unit_net, expected_gain, order_cost, score,
-                PENDING, self.clock(),
+                product_id, name, supplier_cost, sell_price, platform_fee,
+                margin_per_sale, score, PENDING, self.clock(),
             ),
         )
 
@@ -61,6 +57,9 @@ class ProposalStore:
             "SELECT * FROM proposals ORDER BY id DESC LIMIT ?", (limit,)
         )
 
+    def list_listings(self, limit: int = 20) -> List[Dict[str, Any]]:
+        return self.list(status=LISTED, limit=limit)
+
     def has_pending_for(self, product_id: str) -> bool:
         row = self.store.query_one(
             "SELECT 1 FROM proposals WHERE product_id=? AND status=? LIMIT 1",
@@ -73,6 +72,16 @@ class ProposalStore:
             "SELECT COUNT(*) AS n FROM proposals WHERE status=?", (PENDING,)
         )
         return int(row["n"]) if row else 0
+
+    def set_listed(
+        self, proposal_id: int, channel: str, listing_ref: str, decided_by: Any
+    ) -> None:
+        self.store.execute(
+            "UPDATE proposals SET status=?, channel=?, listing_ref=?, "
+            "decided_at=?, decided_by=? WHERE id=?",
+            (LISTED, channel, listing_ref, self.clock(),
+             str(decided_by), proposal_id),
+        )
 
     def set_status(
         self, proposal_id: int, status: str,
@@ -88,9 +97,9 @@ class ProposalStore:
             ),
         )
 
-    def executed_since(self, ts: float) -> int:
+    def listed_since(self, ts: float) -> int:
         row = self.store.query_one(
             "SELECT COUNT(*) AS n FROM proposals WHERE status=? AND decided_at>=?",
-            (EXECUTED, ts),
+            (LISTED, ts),
         )
         return int(row["n"]) if row else 0

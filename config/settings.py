@@ -77,10 +77,11 @@ class Settings:
     telegram_rate_limit: int = _env_int("TELEGRAM_RATE_LIMIT", 20)
     tail_log_lines: int = _env_int("TAIL_LOG_LINES", 20)
 
-    # --- propositions d'achat + garde-fous d'exécution ---
-    proposal_quantity: int = _env_int("PROPOSAL_QUANTITY", 10)
-    max_eur_per_order: float = _env_float("MAX_EUR_PER_ORDER", 200.0)
-    max_orders_per_day: int = _env_int("MAX_ORDERS_PER_DAY", 5)
+    # --- revente (resale) + garde-fous de mise en vente ---
+    sales_channel: str = os.getenv("SALES_CHANNEL", "simulated")
+    ebay_fee_pct: float = _env_float("EBAY_FEE_PCT", 0.12)
+    min_margin_eur: float = _env_float("MIN_MARGIN_EUR", 3.0)
+    max_listings_per_day: int = _env_int("MAX_LISTINGS_PER_DAY", 20)
 
 
 settings = Settings()

@@ -134,6 +134,10 @@ def cmd_proposals(sup, args, user_id) -> str:
     return fmt.fmt_proposals(sup.list_proposals(_int_arg(args, 0, 15)))
 
 
+def cmd_listings(sup, args, user_id) -> str:
+    return fmt.fmt_listings(sup.list_listings(_int_arg(args, 0, 15)))
+
+
 def cmd_approve(sup, args, user_id) -> str:
     if not args:
         return "Usage: /approve <id>"
@@ -178,9 +182,10 @@ COMMANDS: Dict[str, Dict] = {
     "incidents": {"func": cmd_incidents, "help": "incidents récents [n]", "confirm": False},
     "lastscan": {"func": cmd_lastscan, "help": "dernier scan", "confirm": False},
     "tops": {"func": cmd_tops, "help": "meilleurs produits du dernier scan", "confirm": False},
-    "proposals": {"func": cmd_proposals, "help": "propositions d'achat en attente [n]", "confirm": False},
-    "approve": {"func": cmd_approve, "help": "valide une proposition <id>", "confirm": False},
+    "proposals": {"func": cmd_proposals, "help": "propositions de revente en attente [n]", "confirm": False},
+    "approve": {"func": cmd_approve, "help": "valide -> met en vente une proposition <id>", "confirm": False},
     "reject": {"func": cmd_reject, "help": "refuse une proposition <id>", "confirm": False},
+    "listings": {"func": cmd_listings, "help": "produits mis en vente [n]", "confirm": False},
     "watchdog": {"func": cmd_watchdog, "help": "anomalies détectées", "confirm": False},
     "pause": {"func": cmd_pause, "help": "met les workers en pause", "confirm": False},
     "resume": {"func": cmd_resume, "help": "reprend l'exécution", "confirm": False},
