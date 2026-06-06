@@ -1,0 +1,102 @@
+import unittest
+
+from integrations.telegram.commands import CommandRouter
+from app.supervisor import Supervisor
+from runtime.service_state import Store
+
+
+class FakeClock:
+    def __init__(self, t=1000.0):
+        self.t = t
+
+    def __call__(self):
+        return self.t
+
+    def advance(self, dt):
+        self.t += dt
+
+
+class TestTelegramCommands(unittest.TestCase):
+    def setUp(self):
+        self.clk = FakeClock()
+        self.store = Store(":memory:")
+        self.sup = Supervisor(self.store, clock=self.clk)
+        self.sup.recover()
+        self.router = CommandRouter(self.sup)
+
+    def tearDown(self):
+        self.store.close()
+
+    def d(self, cmd, *args):
+        return self.router.dispatch(cmd, list(args), user_id=1)
+
+    def test_ping(self):
+        self.assertEqual(self.d("ping"), "pong")
+
+    def test_unknown_command(self):
+        self.assertIn("inconnue", self.d("nope").lower())
+
+    def test_help_lists_commands(self):
+        out = self.d("help")
+        self.assertIn("/status", out)
+        self.assertIn("/run_scan_now", out)
+
+    def test_status_running(self):
+        out = self.d("status")
+        self.assertIn("STATUS", out)
+        self.assertIn("running", out)
+
+    def test_health_has_status(self):
+        out = self.d("health")
+        self.assertTrue(out.startswith("HEALTH:"))
+
+    def test_pause_resume(self):
+        self.d("pause")
+        self.assertTrue(self.sup.service_state.is_paused())
+        self.assertIn("paused", self.d("status"))
+        self.d("resume")
+        self.assertFalse(self.sup.service_state.is_paused())
+
+    def test_safe_mode_requires_confirm(self):
+        out = self.d("safe_mode_on")
+        self.assertIn("Confirmez", out)
+        self.assertFalse(self.sup.service_state.is_safe_mode())
+        out2 = self.d("safe_mode_on", "confirm")
+        self.assertTrue(self.sup.service_state.is_safe_mode())
+        self.assertIn("SAFE MODE", out2)
+
+    def test_restart_failed_requires_confirm(self):
+        out = self.d("restart_failed_jobs")
+        self.assertIn("Confirmez", out)
+
+    def test_ack_incident_usage(self):
+        self.assertIn("Usage", self.d("ack_incident"))
+
+    def test_scan_now_then_lastscan_and_tops(self):
+        out = self.d("run_scan_now")
+        self.assertIn("job #", out)
+        # exécute le scan de façon synchrone via un worker
+        processed = self.sup.workers[0].run_once(now=self.clk())
+        self.assertTrue(processed)
+        counts = self.sup.queue_counts()
+        self.assertEqual(counts.get("success", 0), 1)
+
+        last = self.d("lastscan")
+        self.assertIn("LAST SCAN", last)
+        tops = self.d("tops")
+        self.assertIn("score=", tops)
+
+    def test_metrics_after_scan(self):
+        self.d("run_scan_now")
+        self.sup.workers[0].run_once(now=self.clk())
+        out = self.d("metrics")
+        self.assertIn("scans", out)
+        self.assertIn("jobs_success", out)
+
+    def test_queue_command(self):
+        out = self.d("queue")
+        self.assertIn("QUEUE", out)
+
+
+if __name__ == "__main__":
+    unittest.main()

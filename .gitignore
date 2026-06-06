@@ -1,0 +1,31 @@
+# ===== Secrets — NE JAMAIS committer =====
+.env
+*.env.local
+
+# ===== État runtime (généré) =====
+data/*.db
+data/*.db-wal
+data/*.db-shm
+logs/*.log
+logs/pm2-*.log
+
+# ===== Sorties générées =====
+outputs/*
+!outputs/.gitkeep
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# ===== Scripts de diagnostic temporaires =====
+_*.py
+
+# ===== OS / IDE =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

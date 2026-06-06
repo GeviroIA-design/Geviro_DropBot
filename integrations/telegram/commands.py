@@ -1,0 +1,185 @@
+"""Définition et routage des commandes admin Telegram.
+
+Chaque handler a la signature (supervisor, args: list[str], user_id) -> str.
+Aucune commande n'exécute de shell ni de code arbitraire : elles ne font
+qu'appeler des méthodes typées du superviseur.
+"""
+from typing import Callable, Dict, List
+
+from config.constants import CONFIRM_TOKEN
+from config.settings import settings
+from integrations.telegram import formatter as fmt
+
+
+def cmd_start(sup, args, user_id) -> str:
+    return (
+        "GEVIRO Dropbot — console admin.\n"
+        "Vous êtes authentifié comme admin.\n"
+        "Tapez /help pour la liste des commandes."
+    )
+
+
+def cmd_help(sup, args, user_id) -> str:
+    lines = ["COMMANDES"]
+    for name, spec in COMMANDS.items():
+        flag = " (confirm)" if spec["confirm"] else ""
+        lines.append(f"/{name}{flag} — {spec['help']}")
+    return "\n".join(lines)
+
+
+def cmd_ping(sup, args, user_id) -> str:
+    return "pong"
+
+
+def cmd_status(sup, args, user_id) -> str:
+    return fmt.fmt_status(sup.status())
+
+
+def cmd_health(sup, args, user_id) -> str:
+    return fmt.fmt_health(sup.health())
+
+
+def cmd_metrics(sup, args, user_id) -> str:
+    return fmt.fmt_metrics(sup.metrics_snapshot())
+
+
+def cmd_jobs(sup, args, user_id) -> str:
+    limit = _int_arg(args, 0, 15)
+    return fmt.fmt_jobs(sup.list_jobs(limit))
+
+
+def cmd_queue(sup, args, user_id) -> str:
+    return fmt.fmt_queue(sup.queue_counts())
+
+
+def cmd_incidents(sup, args, user_id) -> str:
+    limit = _int_arg(args, 0, 15)
+    return fmt.fmt_incidents(sup.list_incidents(limit))
+
+
+def cmd_lastscan(sup, args, user_id) -> str:
+    return fmt.fmt_lastscan(sup.last_scan())
+
+
+def cmd_tops(sup, args, user_id) -> str:
+    return fmt.fmt_tops(sup.last_scan())
+
+
+def cmd_watchdog(sup, args, user_id) -> str:
+    return fmt.fmt_watchdog(sup.watchdog_check())
+
+
+def cmd_pause(sup, args, user_id) -> str:
+    sup.pause()
+    return "Service EN PAUSE. Les workers ne prennent plus de jobs."
+
+
+def cmd_resume(sup, args, user_id) -> str:
+    sup.resume()
+    return "Service REPRIS. Mode running."
+
+
+def cmd_safe_mode_on(sup, args, user_id) -> str:
+    sup.safe_mode_on()
+    return "SAFE MODE activé. Exécution suspendue, service vivant."
+
+
+def cmd_safe_mode_off(sup, args, user_id) -> str:
+    sup.safe_mode_off()
+    return "SAFE MODE désactivé. Reprise normale."
+
+
+def cmd_restart_failed_jobs(sup, args, user_id) -> str:
+    n = sup.restart_failed_jobs()
+    return f"{n} job(s) failed/dead_letter remis en file."
+
+
+def cmd_run_scan_now(sup, args, user_id) -> str:
+    job_id = sup.run_scan_now()
+    return f"Scan enfilé (job #{job_id})."
+
+
+def cmd_run_export_now(sup, args, user_id) -> str:
+    job_id = sup.run_export_now()
+    return f"Export enfilé (job #{job_id})."
+
+
+def cmd_reload_config(sup, args, user_id) -> str:
+    changed = sup.reload_config()
+    body = ", ".join(f"{k}={v}" for k, v in changed.items()) or "aucun"
+    return f"Config rechargée. {body}"
+
+
+def cmd_tail_logs(sup, args, user_id) -> str:
+    n = _int_arg(args, 0, settings.tail_log_lines)
+    lines = sup.tail_logs(n)
+    if not lines:
+        return "LOGS\n(vide)"
+    return "LOGS (tail)\n" + "\n".join(lines)
+
+
+def cmd_ack_incident(sup, args, user_id) -> str:
+    if not args:
+        return "Usage: /ack_incident <id>"
+    try:
+        incident_id = int(args[0])
+    except ValueError:
+        return "id invalide. Usage: /ack_incident <id>"
+    ok = sup.ack_incident(incident_id, user_id)
+    return f"Incident #{incident_id} acquitté." if ok else \
+        f"Incident #{incident_id} introuvable ou déjà acquitté."
+
+
+def _int_arg(args: List[str], idx: int, default: int) -> int:
+    if len(args) > idx:
+        try:
+            return max(1, int(args[idx]))
+        except ValueError:
+            return default
+    return default
+
+
+# name -> {func, help, confirm}
+COMMANDS: Dict[str, Dict] = {
+    "start": {"func": cmd_start, "help": "message d'accueil", "confirm": False},
+    "help": {"func": cmd_help, "help": "liste des commandes", "confirm": False},
+    "ping": {"func": cmd_ping, "help": "test de vie (pong)", "confirm": False},
+    "status": {"func": cmd_status, "help": "état du service", "confirm": False},
+    "health": {"func": cmd_health, "help": "diagnostic santé", "confirm": False},
+    "metrics": {"func": cmd_metrics, "help": "compteurs", "confirm": False},
+    "jobs": {"func": cmd_jobs, "help": "derniers jobs [n]", "confirm": False},
+    "queue": {"func": cmd_queue, "help": "états de la file", "confirm": False},
+    "incidents": {"func": cmd_incidents, "help": "incidents récents [n]", "confirm": False},
+    "lastscan": {"func": cmd_lastscan, "help": "dernier scan", "confirm": False},
+    "tops": {"func": cmd_tops, "help": "meilleurs produits du dernier scan", "confirm": False},
+    "watchdog": {"func": cmd_watchdog, "help": "anomalies détectées", "confirm": False},
+    "pause": {"func": cmd_pause, "help": "met les workers en pause", "confirm": False},
+    "resume": {"func": cmd_resume, "help": "reprend l'exécution", "confirm": False},
+    "safe_mode_on": {"func": cmd_safe_mode_on, "help": "active le safe mode", "confirm": True},
+    "safe_mode_off": {"func": cmd_safe_mode_off, "help": "désactive le safe mode", "confirm": False},
+    "restart_failed_jobs": {"func": cmd_restart_failed_jobs, "help": "relance les jobs échoués", "confirm": True},
+    "run_scan_now": {"func": cmd_run_scan_now, "help": "lance un scan immédiat", "confirm": False},
+    "run_export_now": {"func": cmd_run_export_now, "help": "lance un export immédiat", "confirm": False},
+    "reload_config": {"func": cmd_reload_config, "help": "recharge la config (.env)", "confirm": False},
+    "tail_logs": {"func": cmd_tail_logs, "help": "dernières lignes de log [n]", "confirm": False},
+    "ack_incident": {"func": cmd_ack_incident, "help": "acquitte un incident <id>", "confirm": False},
+}
+
+
+class CommandRouter:
+    def __init__(self, supervisor):
+        self.supervisor = supervisor
+
+    def dispatch(self, command: str, args: List[str], user_id) -> str:
+        spec = COMMANDS.get(command)
+        if spec is None:
+            return f"Commande inconnue: /{command}. Tapez /help."
+        if spec["confirm"] and CONFIRM_TOKEN not in args:
+            return (
+                f"Action sensible. Confirmez avec : /{command} {CONFIRM_TOKEN}"
+            )
+        func: Callable = spec["func"]
+        try:
+            return func(self.supervisor, args, user_id)
+        except Exception as exc:  # noqa: BLE001
+            return f"erreur lors de /{command}: {type(exc).__name__}: {exc}"

@@ -1,0 +1,8 @@
+# Force les fins de ligne LF pour les fichiers exécutés sur le VPS Linux.
+# Évite l'erreur "bad interpreter: /usr/bin/env bash^M" après un push Windows.
+*.sh        text eol=lf
+*.service   text eol=lf
+*.py        text eol=lf
+
+# Laisser Git gérer le reste automatiquement.
+* text=auto

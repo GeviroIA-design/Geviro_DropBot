@@ -1,0 +1,36 @@
+[Unit]
+Description=GEVIRO Dropbot - service 24/7 (scoring + admin Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adapter User/Group et les chemins a votre VPS.
+User=dropbot
+Group=dropbot
+WorkingDirectory=/opt/geviro-dropbot
+# Variables d'environnement (token Telegram, admin IDs, intervalles...).
+EnvironmentFile=/opt/geviro-dropbot/.env
+ExecStart=/opt/geviro-dropbot/.venv/bin/python -m app.run_service
+
+# Redemarrage automatique en cas de crash.
+Restart=always
+RestartSec=5
+# Arret propre : SIGTERM est gere par run_service.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Durcissement leger.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/geviro-dropbot/data /opt/geviro-dropbot/outputs /opt/geviro-dropbot/logs
+
+# Journalisation -> journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=geviro-dropbot
+
+[Install]
+WantedBy=multi-user.target

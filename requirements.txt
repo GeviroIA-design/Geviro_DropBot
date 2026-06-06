@@ -1,0 +1,12 @@
+# GEVIRO Dropshipping Bot — stdlib only.
+# Le service 24/7 ET la console Telegram fonctionnent SANS dépendance externe :
+#   - persistance        -> sqlite3 (stdlib)
+#   - client Telegram     -> urllib (stdlib, long polling)
+#   - concurrence         -> threading (stdlib)
+#
+# Aucune installation n'est requise. Décommenter uniquement si vous branchez
+# de vraies APIs externes plus tard.
+#
+# requests>=2.31
+# python-dotenv>=1.0
+# pandas>=2.1
