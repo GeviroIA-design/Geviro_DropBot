@@ -39,7 +39,21 @@ class TestTelegramCommands(unittest.TestCase):
     def test_help_lists_commands(self):
         out = self.d("help")
         self.assertIn("/status", out)
-        self.assertIn("/run_scan_now", out)
+        self.assertIn("/scan", out)
+        self.assertIn("Suivi", out)
+        self.assertIn("Revente", out)
+
+    def test_alias_scan_enqueues(self):
+        out = self.d("scan")
+        self.assertIn("tâche #", out)
+        self.assertEqual(self.sup.queue_counts().get("pending"), 1)
+
+    def test_alias_config_and_logs(self):
+        self.assertIn("Configuration", self.d("config"))
+        self.assertIn("JOURNAUX", self.d("logs"))
+
+    def test_menu_alias(self):
+        self.assertEqual(self.d("menu"), self.d("help"))
 
     def test_status_running(self):
         out = self.d("status")

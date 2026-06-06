@@ -63,3 +63,16 @@ class TelegramClient:
             timeout=20,
         )
         return payload is not None
+
+    def set_my_commands(self, commands: List[Dict[str, str]]) -> bool:
+        """Enregistre le menu des commandes (autocomplétion '/' dans Telegram).
+
+        `commands` : [{"command": "status", "description": "..."}, ...].
+        Noms en minuscules [a-z0-9_], 1-32 car. ; descriptions 1-256 car.
+        """
+        payload = self._call(
+            "setMyCommands",
+            {"commands": json.dumps(commands, ensure_ascii=False)},
+            timeout=15,
+        )
+        return payload is not None

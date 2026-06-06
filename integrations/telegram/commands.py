@@ -11,20 +11,72 @@ from config.settings import settings
 from integrations.telegram import formatter as fmt
 
 
+# Menu premium : SOURCE UNIQUE pour /help, /menu, setMyCommands et BotFather.
+MENU_GROUPS = [
+    ("Suivi", [
+        ("status", "État du service"),
+        ("health", "Diagnostic santé"),
+        ("tops", "Meilleurs produits du dernier scan"),
+        ("listings", "Produits mis en vente"),
+    ]),
+    ("Revente", [
+        ("scan", "Lancer une analyse maintenant"),
+        ("proposals", "Propositions de revente en attente"),
+        ("approve", "Valider et mettre en vente (id)"),
+        ("reject", "Refuser une proposition (id)"),
+    ]),
+    ("Contrôle", [
+        ("pause", "Mettre les analyses en pause"),
+        ("resume", "Reprendre les analyses"),
+        ("config", "Recharger la configuration"),
+        ("logs", "Derniers journaux"),
+    ]),
+]
+# Commandes avancées : fonctionnelles, mais hors menu principal.
+ADVANCED = [
+    "metrics", "jobs", "queue", "incidents", "watchdog",
+    "safe_mode_on", "safe_mode_off", "restart_failed_jobs", "ack_incident",
+]
+
+
+def telegram_command_menu():
+    """Liste pour setMyCommands : [{command, description}, ...] (+ /help)."""
+    items = [{"command": "help", "description": "Aide et menu des commandes"}]
+    for _group, cmds in MENU_GROUPS:
+        for name, desc in cmds:
+            items.append({"command": name, "description": desc})
+    return items
+
+
+def botfather_commands_text() -> str:
+    """Bloc à coller dans BotFather /setcommands (format 'cmd - desc')."""
+    lines = ["help - Aide et menu des commandes"]
+    for _group, cmds in MENU_GROUPS:
+        for name, desc in cmds:
+            lines.append(f"{name} - {desc}")
+    return "\n".join(lines)
+
+
 def cmd_start(sup, args, user_id) -> str:
     return (
-        "GEVIRO Dropbot — console admin.\n"
-        "Vous êtes authentifié comme admin.\n"
-        "Tapez /help pour la liste des commandes."
+        "👋 GEVIRO DropBot — console d'administration.\n"
+        "Vous êtes authentifié comme administrateur.\n\n"
+        "Tapez /help pour le menu, ou /status pour voir l'état du bot."
     )
 
 
 def cmd_help(sup, args, user_id) -> str:
-    lines = ["COMMANDES DISPONIBLES"]
-    for name, spec in COMMANDS.items():
-        flag = " (confirmation requise)" if spec["confirm"] else ""
-        lines.append(f"/{name}{flag} — {spec['help']}")
+    lines = ["GEVIRO DropBot — commandes"]
+    for group, cmds in MENU_GROUPS:
+        lines.append(f"\n— {group} —")
+        for name, desc in cmds:
+            lines.append(f"/{name} : {desc}")
+    lines.append("\nAvancé : " + " ".join(f"/{c}" for c in ADVANCED))
     return "\n".join(lines)
+
+
+def cmd_menu(sup, args, user_id) -> str:
+    return cmd_help(sup, args, user_id)
 
 
 def cmd_ping(sup, args, user_id) -> str:
@@ -197,6 +249,11 @@ COMMANDS: Dict[str, Dict] = {
     "reload_config": {"func": cmd_reload_config, "help": "recharge la configuration (.env)", "confirm": False},
     "tail_logs": {"func": cmd_tail_logs, "help": "dernières lignes de journal [n]", "confirm": False},
     "ack_incident": {"func": cmd_ack_incident, "help": "acquitte un incident <id>", "confirm": False},
+    # Alias conviviaux (noms du menu) + menu.
+    "scan": {"func": cmd_run_scan_now, "help": "lance une analyse immédiate", "confirm": False},
+    "logs": {"func": cmd_tail_logs, "help": "derniers journaux [n]", "confirm": False},
+    "config": {"func": cmd_reload_config, "help": "recharge la configuration", "confirm": False},
+    "menu": {"func": cmd_menu, "help": "menu des commandes", "confirm": False},
 }
 
 

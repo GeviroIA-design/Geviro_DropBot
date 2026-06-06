@@ -57,6 +57,13 @@ class TelegramAdmin:
             return
         if not self.settings.telegram_admin_ids:
             log.warning("telegram actif mais AUCUN admin -- tout sera refuse")
+        # Menu Telegram (autocomplétion '/') configuré automatiquement.
+        try:
+            from integrations.telegram.commands import telegram_command_menu
+            if self.client.set_my_commands(telegram_command_menu()):
+                log.info("menu Telegram configure (setMyCommands)")
+        except Exception as exc:  # noqa: BLE001
+            log.warning(f"setMyCommands echoue: {exc}")
         log.info("telegram admin: polling demarre")
         while not stop_event.is_set():
             try:
