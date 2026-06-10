@@ -82,6 +82,9 @@ class Settings:
     ebay_fee_pct: float = _env_float("EBAY_FEE_PCT", 0.12)
     min_margin_eur: float = _env_float("MIN_MARGIN_EUR", 3.0)
     max_listings_per_day: int = _env_int("MAX_LISTINGS_PER_DAY", 20)
+    # Plafond de propositions en attente (anti-spam) : on n'en crée plus
+    # tant que l'admin n'a pas traité la file.
+    max_pending_proposals: int = _env_int("MAX_PENDING_PROPOSALS", 25)
 
 
 settings = Settings()

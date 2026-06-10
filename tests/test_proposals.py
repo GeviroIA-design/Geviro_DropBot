@@ -104,6 +104,24 @@ class TestResaleProposals(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("marge", msg.lower())
 
+    def test_scan_tags_products_for_exploration(self):
+        # Chaque scan doit produire un lot étiqueté (S0000-...) -> exploration
+        # de nouveaux lots, plus de blocage par déduplication.
+        self.sup._handle_scan({})
+        props = self.sup.list_proposals(limit=50)
+        self.assertTrue(props)
+        self.assertTrue(
+            all(p["product_id"].startswith("S0000-") for p in props)
+        )
+
+    def test_pending_cap_blocks_new_proposals(self):
+        from config.settings import Settings
+        s = Settings()  # copie isolée (ne pollue pas le singleton global)
+        s.max_pending_proposals = 0
+        self.sup.settings = s
+        self.sup._generate_proposals([_product()], [_buy()])
+        self.assertEqual(self.sup.list_proposals(), [])
+
     def test_daily_listing_quota(self):
         self.sup.executor.max_listings_per_day = 2
         ids = [

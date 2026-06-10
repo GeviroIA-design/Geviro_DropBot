@@ -220,8 +220,20 @@ class Supervisor:
         from app.pipeline import run_pipeline
 
         n = int(payload.get("n", self.settings.n_products))
-        seed = int(payload.get("seed", self.settings.seed))
+        # Chaque scan explore un NOUVEAU lot (graine variable) au lieu de
+        # relire la même liste -> le bot "découvre". En mode simulé, ces
+        # produits restent fictifs (la vraie variété viendra des sources réelles).
+        scan_seq = int(self.metrics.get("scans"))
+        seed = int(payload["seed"]) if "seed" in payload else \
+            self.settings.seed + scan_seq
+        tag = f"S{scan_seq:04d}"
         products, scorecards, _ = run_pipeline(n=n, seed=seed)
+        # Identifiants uniques par scan : sinon la déduplication bloque les
+        # nouveaux lots qui réutilisent les mêmes positions (P0000..).
+        for p in products:
+            p.product_id = f"{tag}-{p.product_id}"
+        for sc in scorecards:
+            sc.product_id = f"{tag}-{sc.product_id}"
 
         summary = dict(Counter(s.decision for s in scorecards))
         name_by_id = {p.product_id: p.name for p in products}
@@ -255,8 +267,11 @@ class Supervisor:
         decision_by_id = {s.product_id: s for s in scorecards}
         fee_pct = self.settings.ebay_fee_pct
         min_margin = self.settings.min_margin_eur
+        max_pending = self.settings.max_pending_proposals
 
         for pid, sc in decision_by_id.items():
+            if self.proposals.pending_count() >= max_pending:
+                break  # file pleine : on attend que l'admin traite (anti-spam)
             if sc.decision != "BUY":
                 continue
             p = prod_by_id.get(pid)
