@@ -176,9 +176,13 @@ def fmt_proposals(props: List[Dict[str, Any]]) -> str:
         return "PROPOSITIONS\n(aucune en attente)"
     lines = ["PROPOSITIONS DE REVENTE EN ATTENTE"]
     for p in props:
+        sell = p["sell_price"]
+        margin = p["margin_per_sale"]
+        pct = (margin / sell * 100.0) if sell else 0.0
         block = (
-            f"- #{p['id']} {p['name']} | prix {p['sell_price']:.2f} EUR | "
-            f"marge +{p['margin_per_sale']:.2f} EUR/vente"
+            f"- #{p['id']} {p['name']}\n"
+            f"    achat {p['supplier_cost']:.2f} -> vente {sell:.2f} EUR | "
+            f"marge +{margin:.2f} ({pct:.0f}%)"
         )
         if p.get("product_url"):
             block += f"\n    voir : {p['product_url']}"

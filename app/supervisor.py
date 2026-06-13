@@ -297,7 +297,7 @@ class Supervisor:
                 score=sc.final_score,
                 product_url=url,
             )
-            self._push_proposal(prop_id, p.name, sell_price, margin, url)
+            self._push_proposal(self.proposals.get(prop_id))
 
     @staticmethod
     def _search_url(niche: str, category: str) -> str:
@@ -308,22 +308,29 @@ class Supervisor:
         query = (niche or category or "dropshipping").strip()
         return f"https://www.ebay.fr/sch/i.html?_nkw={quote(query)}"
 
-    def _push_proposal(self, prop_id, name, sell_price, margin, url=""):
-        if not self.notify:
+    def _push_proposal(self, p: dict):
+        if not self.notify or not p:
             return
+        sell = p["sell_price"]
+        cost = p["supplier_cost"]
+        fee = p["platform_fee"]
+        margin = p["margin_per_sale"]
+        pct = (margin / sell * 100.0) if sell else 0.0
         msg = (
-            f"PROPOSITION DE REVENTE #{prop_id}\n"
-            f"{name}\n"
-            f"Prix de vente conseille : {sell_price:.2f} EUR\n"
-            f"MARGE NETTE / VENTE : +{margin:.2f} EUR (frais inclus)\n"
+            f"PROPOSITION DE REVENTE #{p['id']} — {p['name']} "
+            f"(score {p['score']:.0f}/100)\n"
+            f"- Prix d'achat (fournisseur) : {cost:.2f} EUR\n"
+            f"- Prix de vente conseillé : {sell:.2f} EUR\n"
+            f"- Frais marketplace : {fee:.2f} EUR\n"
+            f"- MARGE NETTE : +{margin:.2f} EUR/vente ({pct:.0f}%)\n"
         )
-        if url:
-            msg += f"Jeter un coup d'oeil (produits similaires) : {url}\n"
-        msg += f"-> /approve {prop_id} (mettre en vente)   ou   /reject {prop_id}"
+        if p.get("product_url"):
+            msg += f"- Voir des produits similaires : {p['product_url']}\n"
+        msg += f"-> /approve {p['id']} (mettre en vente)   ou   /reject {p['id']}"
         try:
             self.notify(msg)
         except Exception as exc:  # noqa: BLE001
-            log.warning(f"push proposition #{prop_id} echoue: {exc}")
+            log.warning(f"push proposition #{p['id']} echoue: {exc}")
 
     def _handle_export(self, payload: dict) -> None:
         from app.orchestrator import execute
