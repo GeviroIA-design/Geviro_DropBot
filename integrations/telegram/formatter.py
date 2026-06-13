@@ -224,6 +224,30 @@ def fmt_listings(listings: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def fmt_member_requests(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "DEMANDES D'ACCÈS\n(aucune en attente)"
+    lines = ["DEMANDES D'ACCÈS EN ATTENTE"]
+    for r in rows:
+        lines.append(
+            f"- {r.get('name') or '?'} (id {r['user_id']})"
+            f"\n    /accept {r['user_id']}   |   /deny {r['user_id']}"
+        )
+    return "\n".join(lines)
+
+
+def fmt_members(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "MEMBRES\n(aucun membre autorisé)"
+    lines = [f"MEMBRES AUTORISÉS ({len(rows)})"]
+    for r in rows:
+        lines.append(
+            f"- {r.get('name') or '?'} (id {r['user_id']}) "
+            f"-> /revoke {r['user_id']}"
+        )
+    return "\n".join(lines)
+
+
 def _fmt_duration(seconds: float) -> str:
     seconds = int(seconds)
     d, rem = divmod(seconds, 86400)

@@ -86,6 +86,14 @@ CREATE TABLE IF NOT EXISTS proposals (
     note            TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status, id);
+CREATE TABLE IF NOT EXISTS members (
+    user_id      TEXT PRIMARY KEY,
+    name         TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    requested_at REAL NOT NULL,
+    decided_at   REAL,
+    decided_by   TEXT
+);
 """
 
 

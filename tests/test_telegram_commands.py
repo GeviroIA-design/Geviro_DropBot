@@ -115,6 +115,19 @@ class TestTelegramCommands(unittest.TestCase):
         out = self.d("results")
         self.assertIn("RÉSULTATS", out)
 
+    def test_member_management_flow(self):
+        # une demande arrive, l'admin la voit, l'accepte, puis la révoque
+        self.sup.members.request(555, "Alice")
+        self.assertIn("555", self.d("requests"))
+        self.d("accept", "555")
+        self.assertTrue(self.sup.members.is_approved(555))
+        self.assertIn("555", self.d("members"))
+        self.d("revoke", "555")
+        self.assertFalse(self.sup.members.is_approved(555))
+
+    def test_accept_without_id_shows_usage(self):
+        self.assertIn("Utilisation", self.d("accept"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,15 @@ from config.settings import settings
 from integrations.telegram import formatter as fmt
 
 
+# Commandes autorisées aux MEMBRES approuvés (lecture seule). Tout le reste
+# (contrôle, validation, gestion des membres) est réservé à l'administrateur.
+MEMBER_COMMANDS = frozenset({
+    "start", "help", "menu", "ping",
+    "status", "health", "tops", "proposals", "listings", "results",
+    "lastscan", "metrics", "queue", "jobs",
+})
+
+
 # Menu premium : SOURCE UNIQUE pour /help, /menu, setMyCommands et BotFather.
 MENU_GROUPS = [
     ("Suivi", [
@@ -37,6 +46,7 @@ MENU_GROUPS = [
 ADVANCED = [
     "metrics", "jobs", "queue", "incidents", "watchdog",
     "safe_mode_on", "safe_mode_off", "restart_failed_jobs", "ack_incident",
+    "requests", "members", "accept", "deny", "revoke",
 ]
 
 
@@ -195,6 +205,48 @@ def cmd_results(sup, args, user_id) -> str:
     return fmt.fmt_results(sup.results_summary(_int_arg(args, 0, 20)))
 
 
+# --- Gestion des membres (admin uniquement) ---
+def cmd_requests(sup, args, user_id) -> str:
+    return fmt.fmt_member_requests(sup.list_member_requests(_int_arg(args, 0, 30)))
+
+
+def cmd_members(sup, args, user_id) -> str:
+    return fmt.fmt_members(sup.list_members(_int_arg(args, 0, 50)))
+
+
+def cmd_accept(sup, args, user_id) -> str:
+    target = _uid_arg(args)
+    if target is None:
+        return "Utilisation : /accept <id_utilisateur>"
+    sup.approve_member(target, user_id)
+    return f"Utilisateur {target} accepté. Il a accès en lecture."
+
+
+def cmd_deny(sup, args, user_id) -> str:
+    target = _uid_arg(args)
+    if target is None:
+        return "Utilisation : /deny <id_utilisateur>"
+    sup.deny_member(target, user_id)
+    return f"Demande de l'utilisateur {target} refusée."
+
+
+def cmd_revoke(sup, args, user_id) -> str:
+    target = _uid_arg(args)
+    if target is None:
+        return "Utilisation : /revoke <id_utilisateur>"
+    sup.revoke_member(target, user_id)
+    return f"Accès de l'utilisateur {target} révoqué."
+
+
+def _uid_arg(args: List[str]):
+    if not args:
+        return None
+    try:
+        return int(args[0])
+    except ValueError:
+        return None
+
+
 def cmd_approve(sup, args, user_id) -> str:
     if not args:
         return "Utilisation : /approve <id>"
@@ -255,6 +307,12 @@ COMMANDS: Dict[str, Dict] = {
     "reload_config": {"func": cmd_reload_config, "help": "recharge la configuration (.env)", "confirm": False},
     "tail_logs": {"func": cmd_tail_logs, "help": "dernières lignes de journal [n]", "confirm": False},
     "ack_incident": {"func": cmd_ack_incident, "help": "acquitte un incident <id>", "confirm": False},
+    # Gestion des membres (admin uniquement).
+    "requests": {"func": cmd_requests, "help": "demandes d'accès en attente", "confirm": False},
+    "members": {"func": cmd_members, "help": "liste des membres autorisés", "confirm": False},
+    "accept": {"func": cmd_accept, "help": "autorise un utilisateur <id>", "confirm": False},
+    "deny": {"func": cmd_deny, "help": "refuse une demande <id>", "confirm": False},
+    "revoke": {"func": cmd_revoke, "help": "retire l'accès d'un membre <id>", "confirm": False},
     # Alias conviviaux (noms du menu) + menu.
     "scan": {"func": cmd_run_scan_now, "help": "lance une analyse immédiate", "confirm": False},
     "logs": {"func": cmd_tail_logs, "help": "derniers journaux [n]", "confirm": False},

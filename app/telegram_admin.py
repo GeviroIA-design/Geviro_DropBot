@@ -31,12 +31,15 @@ class TelegramAdmin:
         supervisor.auth = self.auth
         self.router = CommandRouter(supervisor)
         self.handler = UpdateHandler(
-            self.auth, self.router, supervisor.audit, self.client
+            self.auth, self.router, supervisor.audit, self.client,
+            supervisor.members,
         )
         self.notifier = Notifier(self.client, settings.telegram_admin_ids)
         supervisor.alerts.set_notifier(self.notifier.broadcast)
         # Push des propositions d'achat vers l'admin.
         supervisor.notify = self.notifier.broadcast
+        # Notification d'UN utilisateur précis (ex : membre accepté).
+        supervisor.notify_user = self.client.send_message
 
         self.enabled = self.client.enabled
         self._offset = 0

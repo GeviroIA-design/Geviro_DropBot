@@ -24,6 +24,7 @@ from integrations.sales.simulated import SimulatedSalesChannel
 from runtime.circuit_breaker import CircuitBreaker
 from runtime.executor import ResaleExecutor
 from runtime.job_queue import JobQueue
+from runtime.member_store import MemberStore
 from runtime.proposal_store import ProposalStore
 from runtime.recovery import recover_on_start
 from runtime.retry_policy import RetryPolicy
@@ -58,6 +59,7 @@ class Supervisor:
         self.incidents = IncidentStore(store, clock=clock)
         self.audit = AuditLog(store, clock=clock)
         self.proposals = ProposalStore(store, clock=clock)
+        self.members = MemberStore(store, clock=clock)
 
         # Politique d'échec
         self.retry_policy = RetryPolicy(
@@ -88,6 +90,8 @@ class Supervisor:
         )
         # Hook de notification des propositions (branché par telegram_admin).
         self.notify = None
+        # Hook pour notifier UN utilisateur précis (branché par telegram_admin).
+        self.notify_user = None
 
         # Scheduler récurrent
         self.scheduler = Scheduler(clock=clock)
@@ -472,6 +476,36 @@ class Supervisor:
 
     def ack_incident(self, incident_id: int, admin_id) -> bool:
         return self.incidents.ack(incident_id, admin_id)
+
+    # --- gestion des membres (inscription + validation admin) ---
+    def list_member_requests(self, limit: int = 30) -> List[dict]:
+        from runtime.member_store import PENDING
+        return self.members.list(status=PENDING, limit=limit)
+
+    def list_members(self, limit: int = 50) -> List[dict]:
+        from runtime.member_store import APPROVED
+        return self.members.list(status=APPROVED, limit=limit)
+
+    def approve_member(self, user_id, by) -> bool:
+        self.members.approve(user_id, by)
+        if self.notify_user:
+            try:
+                self.notify_user(
+                    user_id,
+                    "Accès accepté ! Bienvenue sur GEVIRO DropBot. "
+                    "Tape /help pour découvrir les commandes.",
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(f"notify membre {user_id} echoue: {exc}")
+        return True
+
+    def deny_member(self, user_id, by) -> bool:
+        self.members.deny(user_id, by)
+        return True
+
+    def revoke_member(self, user_id, by) -> bool:
+        self.members.revoke(user_id, by)
+        return True
 
     # --- propositions de revente ---
     def list_proposals(self, limit: int = 15) -> List[dict]:
