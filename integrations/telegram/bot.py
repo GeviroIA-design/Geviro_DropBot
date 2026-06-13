@@ -64,15 +64,16 @@ class TelegramClient:
         )
         return payload is not None
 
-    def set_my_commands(self, commands: List[Dict[str, str]]) -> bool:
+    def set_my_commands(self, commands: List[Dict[str, str]],
+                        scope: Optional[dict] = None) -> bool:
         """Enregistre le menu des commandes (autocomplétion '/' dans Telegram).
 
         `commands` : [{"command": "status", "description": "..."}, ...].
-        Noms en minuscules [a-z0-9_], 1-32 car. ; descriptions 1-256 car.
+        `scope` (optionnel) : portée Telegram, ex. {"type": "default"} (tous)
+        ou {"type": "chat", "chat_id": <id>} (un chat précis -> menu privé).
         """
-        payload = self._call(
-            "setMyCommands",
-            {"commands": json.dumps(commands, ensure_ascii=False)},
-            timeout=15,
-        )
+        params = {"commands": json.dumps(commands, ensure_ascii=False)}
+        if scope is not None:
+            params["scope"] = json.dumps(scope)
+        payload = self._call("setMyCommands", params, timeout=15)
         return payload is not None

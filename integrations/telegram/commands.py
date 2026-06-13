@@ -59,6 +59,18 @@ def telegram_command_menu():
     return items
 
 
+def configure_command_menu(client, admin_ids) -> None:
+    """Rend le menu '/' visible UNIQUEMENT par les administrateurs.
+
+    - vide le menu par défaut (membres et inconnus ne voient aucune commande) ;
+    - installe le menu complet dans le chat privé de chaque admin.
+    """
+    client.set_my_commands([], scope={"type": "default"})
+    menu = telegram_command_menu()
+    for admin_id in admin_ids:
+        client.set_my_commands(menu, scope={"type": "chat", "chat_id": admin_id})
+
+
 def botfather_commands_text() -> str:
     """Bloc à coller dans BotFather /setcommands (format 'cmd - desc')."""
     lines = ["help - Aide et menu des commandes"]

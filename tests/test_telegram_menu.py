@@ -3,8 +3,18 @@ import unittest
 
 from integrations.telegram.commands import (
     botfather_commands_text,
+    configure_command_menu,
     telegram_command_menu,
 )
+
+
+class FakeMenuClient:
+    def __init__(self):
+        self.calls = []
+
+    def set_my_commands(self, commands, scope=None):
+        self.calls.append((commands, scope))
+        return True
 
 _NAME = re.compile(r"^[a-z0-9_]{1,32}$")
 
@@ -27,6 +37,21 @@ class TestTelegramMenu(unittest.TestCase):
     def test_no_duplicate_commands(self):
         names = [c["command"] for c in telegram_command_menu()]
         self.assertEqual(len(names), len(set(names)))
+
+    def test_menu_scoped_to_admins_only(self):
+        client = FakeMenuClient()
+        configure_command_menu(client, [1473089737])
+        # 1) le menu par défaut est vidé (membres/inconnus ne voient rien)
+        default_calls = [c for c in client.calls if c[1] == {"type": "default"}]
+        self.assertTrue(default_calls)
+        self.assertEqual(default_calls[0][0], [])
+        # 2) le menu complet est posé dans le chat de l'admin
+        admin_calls = [
+            c for c in client.calls
+            if c[1] == {"type": "chat", "chat_id": 1473089737}
+        ]
+        self.assertTrue(admin_calls)
+        self.assertTrue(len(admin_calls[0][0]) > 0)
 
     def test_botfather_text_format(self):
         text = botfather_commands_text()
