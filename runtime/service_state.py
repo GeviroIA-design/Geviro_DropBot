@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS proposals (
     status          TEXT NOT NULL DEFAULT 'pending',
     channel         TEXT,
     listing_ref     TEXT,
+    product_url     TEXT,
     created_at      REAL NOT NULL,
     decided_at      REAL,
     decided_by      TEXT,
@@ -106,7 +107,21 @@ class Store:
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            self._migrate()
             self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Migrations légères : ajoute les colonnes manquantes sur une base
+        existante (idempotent). Indispensable pour mettre à jour le VPS sans
+        recréer la base."""
+        self._add_column("proposals", "product_url", "TEXT")
+
+    def _add_column(self, table: str, col: str, decl: str) -> None:
+        cols = [
+            r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")
+        ]
+        if col not in cols:
+            self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
     @contextmanager
     def connection(self):

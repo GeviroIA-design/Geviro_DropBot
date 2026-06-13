@@ -18,6 +18,7 @@ MENU_GROUPS = [
         ("health", "Diagnostic santé"),
         ("tops", "Meilleurs produits du dernier scan"),
         ("listings", "Produits mis en vente"),
+        ("results", "Résultats des produits mis en vente"),
     ]),
     ("Revente", [
         ("scan", "Lancer une analyse maintenant"),
@@ -190,6 +191,10 @@ def cmd_listings(sup, args, user_id) -> str:
     return fmt.fmt_listings(sup.list_listings(_int_arg(args, 0, 15)))
 
 
+def cmd_results(sup, args, user_id) -> str:
+    return fmt.fmt_results(sup.results_summary(_int_arg(args, 0, 20)))
+
+
 def cmd_approve(sup, args, user_id) -> str:
     if not args:
         return "Utilisation : /approve <id>"
@@ -238,6 +243,7 @@ COMMANDS: Dict[str, Dict] = {
     "approve": {"func": cmd_approve, "help": "valide et met en vente une proposition <id>", "confirm": False},
     "reject": {"func": cmd_reject, "help": "refuse une proposition <id>", "confirm": False},
     "listings": {"func": cmd_listings, "help": "produits actuellement mis en vente [n]", "confirm": False},
+    "results": {"func": cmd_results, "help": "résultats (vues/ventes/profit) des produits en vente", "confirm": False},
     "watchdog": {"func": cmd_watchdog, "help": "anomalies de surveillance détectées", "confirm": False},
     "pause": {"func": cmd_pause, "help": "met les processus de travail en pause", "confirm": False},
     "resume": {"func": cmd_resume, "help": "reprend l'exécution", "confirm": False},

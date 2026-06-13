@@ -286,6 +286,7 @@ class Supervisor:
             if self.proposals.has_pending_for(pid):
                 continue  # déjà proposé, pas de doublon
 
+            url = self._search_url(p.niche, p.category)
             prop_id = self.proposals.create(
                 product_id=pid,
                 name=p.name,
@@ -294,10 +295,20 @@ class Supervisor:
                 platform_fee=platform_fee,
                 margin_per_sale=margin,
                 score=sc.final_score,
+                product_url=url,
             )
-            self._push_proposal(prop_id, p.name, sell_price, margin)
+            self._push_proposal(prop_id, p.name, sell_price, margin, url)
 
-    def _push_proposal(self, prop_id, name, sell_price, margin):
+    @staticmethod
+    def _search_url(niche: str, category: str) -> str:
+        """Lien de recherche (produits similaires) pour 'jeter un coup d'oeil'.
+        En mode simulé : recherche eBay sur la niche. Avec une vraie source,
+        ce sera l'URL directe du produit."""
+        from urllib.parse import quote
+        query = (niche or category or "dropshipping").strip()
+        return f"https://www.ebay.fr/sch/i.html?_nkw={quote(query)}"
+
+    def _push_proposal(self, prop_id, name, sell_price, margin, url=""):
         if not self.notify:
             return
         msg = (
@@ -305,8 +316,10 @@ class Supervisor:
             f"{name}\n"
             f"Prix de vente conseille : {sell_price:.2f} EUR\n"
             f"MARGE NETTE / VENTE : +{margin:.2f} EUR (frais inclus)\n"
-            f"-> /approve {prop_id} (mettre en vente)   ou   /reject {prop_id}"
         )
+        if url:
+            msg += f"Jeter un coup d'oeil (produits similaires) : {url}\n"
+        msg += f"-> /approve {prop_id} (mettre en vente)   ou   /reject {prop_id}"
         try:
             self.notify(msg)
         except Exception as exc:  # noqa: BLE001
@@ -460,6 +473,45 @@ class Supervisor:
 
     def list_listings(self, limit: int = 15) -> List[dict]:
         return self.proposals.list_listings(limit=limit)
+
+    def results_summary(self, limit: int = 20) -> dict:
+        """Retours/performances des produits mis en vente.
+
+        En mode simulé : performances plausibles qui grandissent avec le temps
+        écoulé depuis la mise en vente (vues -> ventes -> profit). Avec un vrai
+        canal, ces chiffres viendront des ventes réelles (API eBay)."""
+        import hashlib
+
+        now = self.clock()
+        rows = []
+        total_sales = 0
+        total_profit = 0.0
+        for p in self.proposals.list_listings(limit=limit):
+            decided = p.get("decided_at") or now
+            hours = max(0.0, (now - decided) / 3600.0)
+            seed = int(hashlib.md5(p["product_id"].encode()).hexdigest()[:6], 16)
+            factor = 0.5 + (seed % 100) / 100.0  # 0.5 .. 1.49
+            views = int(hours * 2.0 * factor * (p["score"] / 75.0))
+            sales = int(views * 0.03)  # ~3% de conversion
+            profit = round(sales * p["margin_per_sale"], 2)
+            total_sales += sales
+            total_profit += profit
+            rows.append(
+                {
+                    "name": p["name"],
+                    "channel": p.get("channel"),
+                    "hours": hours,
+                    "views": views,
+                    "sales": sales,
+                    "profit": profit,
+                }
+            )
+        return {
+            "rows": rows,
+            "total_sales": total_sales,
+            "total_profit": round(total_profit, 2),
+            "simulated": not getattr(self.sales_channel, "real", False),
+        }
 
     def approve_proposal(self, proposal_id: int, admin_id):
         return self.executor.approve(proposal_id, admin_id)

@@ -20,8 +20,8 @@ class TestTelegramMenu(unittest.TestCase):
             self.assertTrue(1 <= len(c["description"]) <= 256)
         # Les commandes métier clés sont présentes.
         for expected in ("help", "status", "scan", "proposals", "approve",
-                         "reject", "listings", "pause", "resume", "config",
-                         "logs", "tops", "health"):
+                         "reject", "listings", "results", "pause", "resume",
+                         "config", "logs", "tops", "health"):
             self.assertIn(expected, names)
 
     def test_no_duplicate_commands(self):

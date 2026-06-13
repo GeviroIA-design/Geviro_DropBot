@@ -29,14 +29,15 @@ class ProposalStore:
         platform_fee: float,
         margin_per_sale: float,
         score: float,
+        product_url: str = "",
     ) -> int:
         return self.store.execute(
             "INSERT INTO proposals(product_id, name, supplier_cost, sell_price, "
-            "platform_fee, margin_per_sale, score, status, created_at) "
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "platform_fee, margin_per_sale, score, product_url, status, "
+            "created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 product_id, name, supplier_cost, sell_price, platform_fee,
-                margin_per_sale, score, PENDING, self.clock(),
+                margin_per_sale, score, product_url, PENDING, self.clock(),
             ),
         )
 

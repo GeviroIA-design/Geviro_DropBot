@@ -111,6 +111,10 @@ class TestTelegramCommands(unittest.TestCase):
         out = self.d("queue")
         self.assertIn("FILE D'ATTENTE", out)
 
+    def test_results_command(self):
+        out = self.d("results")
+        self.assertIn("RÉSULTATS", out)
+
 
 if __name__ == "__main__":
     unittest.main()

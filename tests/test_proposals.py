@@ -59,6 +59,20 @@ class TestResaleProposals(unittest.TestCase):
         )
         self.assertEqual(self.sup.list_proposals(), [])
 
+    def test_proposal_has_product_url(self):
+        self.sup._generate_proposals([_product()], [_buy()])
+        p = self.sup.list_proposals()[0]
+        self.assertTrue(p["product_url"].startswith("https://"))
+
+    def test_results_summary_for_listed(self):
+        self.sup._generate_proposals([_product()], [_buy()])
+        pid = self.sup.list_proposals()[0]["id"]
+        self.sup.approve_proposal(pid, 1)
+        res = self.sup.results_summary()
+        self.assertEqual(len(res["rows"]), 1)
+        self.assertGreaterEqual(res["total_sales"], 0)
+        self.assertTrue(res["simulated"])
+
     def test_no_proposal_for_non_buy(self):
         sc = Scorecard(product_id="P1", final_score=50.0, decision="WATCHLIST")
         self.sup._generate_proposals([_product()], [sc])

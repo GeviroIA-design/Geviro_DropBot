@@ -176,11 +176,34 @@ def fmt_proposals(props: List[Dict[str, Any]]) -> str:
         return "PROPOSITIONS\n(aucune en attente)"
     lines = ["PROPOSITIONS DE REVENTE EN ATTENTE"]
     for p in props:
-        lines.append(
+        block = (
             f"- #{p['id']} {p['name']} | prix {p['sell_price']:.2f} EUR | "
             f"marge +{p['margin_per_sale']:.2f} EUR/vente"
-            f"\n    /approve {p['id']}   |   /reject {p['id']}"
         )
+        if p.get("product_url"):
+            block += f"\n    voir : {p['product_url']}"
+        block += f"\n    /approve {p['id']}   |   /reject {p['id']}"
+        lines.append(block)
+    return "\n".join(lines)
+
+
+def fmt_results(data: Dict[str, Any]) -> str:
+    rows = data.get("rows", [])
+    suffix = " (simulés)" if data.get("simulated") else ""
+    if not rows:
+        return f"RÉSULTATS{suffix}\n(aucun produit mis en vente pour l'instant)"
+    lines = [f"RÉSULTATS{suffix}"]
+    for r in rows:
+        days = r["hours"] / 24.0
+        age = f"{days:.1f}j" if days >= 1 else f"{int(r['hours'])}h"
+        lines.append(
+            f"- {r['name']} [{r.get('channel')}] | {age} | "
+            f"{r['views']} vues | {r['sales']} ventes | +{r['profit']:.2f} EUR"
+        )
+    lines.append(
+        f"\nTOTAL : {data.get('total_sales', 0)} ventes | "
+        f"+{data.get('total_profit', 0):.2f} EUR{suffix}"
+    )
     return "\n".join(lines)
 
 
