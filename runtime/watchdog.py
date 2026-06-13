@@ -33,8 +33,8 @@ class Watchdog:
                     "job_id": job["id"],
                     "name": job["name"],
                     "detail": (
-                        f"job {job['id']} ({job['name']}) running > "
-                        f"{self.job_timeout:.0f}s"
+                        f"tâche #{job['id']} ({job['name']}) bloquée depuis "
+                        f"plus de {self.job_timeout:.0f}s"
                     ),
                 }
             )
@@ -46,7 +46,7 @@ class Watchdog:
                     {
                         "type": "stale_heartbeat",
                         "component": name,
-                        "detail": f"heartbeat '{name}' stale ({age:.0f}s)",
+                        "detail": f"battement de cœur « {name} » périmé ({age:.0f}s)",
                     }
                 )
 

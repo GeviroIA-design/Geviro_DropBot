@@ -91,7 +91,7 @@ def cmd_menu(sup, args, user_id) -> str:
 
 
 def cmd_ping(sup, args, user_id) -> str:
-    return "pong (le bot est en ligne)"
+    return "Le bot est en ligne ✅"
 
 
 def cmd_status(sup, args, user_id) -> str:

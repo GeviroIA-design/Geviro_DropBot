@@ -33,6 +33,27 @@ CHECK_FR = {
     "last_scan": "dernier scan",
     "open_incidents": "incidents ouverts",
 }
+SOURCE_FR = {
+    "watchdog": "surveillance",
+    "executor": "exécution",
+    "admin": "admin",
+    "recovery": "redémarrage",
+    "worker": "ouvrier",
+    "alerts": "alertes",
+    "scan": "analyse",
+    "export": "export",
+}
+CHANNEL_FR = {"simulated": "simulé"}
+METRIC_FR = {
+    "scans": "analyses lancées",
+    "exports": "exports réalisés",
+    "jobs_success": "tâches réussies",
+    "jobs_failed": "tâches échouées",
+    "jobs_retried": "tâches relancées",
+    "jobs_dead_letter": "tâches abandonnées",
+    "jobs_circuit_skipped": "tâches reportées (coupe-circuit)",
+    "listings_published": "mises en vente",
+}
 
 
 def _t(mapping: dict, key: str) -> str:
@@ -96,7 +117,7 @@ def fmt_metrics(m: Dict[str, float]) -> str:
         return "COMPTEURS\n(aucun)"
     lines = ["COMPTEURS"]
     for k in sorted(m):
-        lines.append(f"- {k} : {_num(m[k])}")
+        lines.append(f"- {_t(METRIC_FR, k)} : {_num(m[k])}")
     return "\n".join(lines)
 
 
@@ -130,7 +151,7 @@ def fmt_incidents(incidents: List[Dict[str, Any]]) -> str:
         ack = "acquitté" if i.get("acknowledged") else "OUVERT"
         lines.append(
             f"- #{i['id']} [{_t(SEVERITY_FR, i['severity'])}/{ack}] "
-            f"{i['source']} : {_short(i['message'])} "
+            f"{_t(SOURCE_FR, i['source'])} : {_short(i['message'])} "
             f"(il y a {_ago(i['created_at'])})"
         )
     return "\n".join(lines)
@@ -201,7 +222,7 @@ def fmt_results(data: Dict[str, Any]) -> str:
         days = r["hours"] / 24.0
         age = f"{days:.1f}j" if days >= 1 else f"{int(r['hours'])}h"
         lines.append(
-            f"- {r['name']} [{r.get('channel')}] | {age} | "
+            f"- {r['name']} [{_t(CHANNEL_FR, r.get('channel') or '?')}] | {age} | "
             f"{r['views']} vues | {r['sales']} ventes | +{r['profit']:.2f} EUR"
         )
     lines.append(
@@ -217,7 +238,7 @@ def fmt_listings(listings: List[Dict[str, Any]]) -> str:
     lines = ["MISES EN VENTE"]
     for p in listings:
         lines.append(
-            f"- #{p['id']} {p['name']} [{p.get('channel')}] | "
+            f"- #{p['id']} {p['name']} [{_t(CHANNEL_FR, p.get('channel') or '?')}] | "
             f"prix {p['sell_price']:.2f} EUR | marge +{p['margin_per_sale']:.2f}"
             f"/vente | réf {p.get('listing_ref')}"
         )

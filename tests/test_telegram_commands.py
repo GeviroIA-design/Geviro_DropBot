@@ -31,7 +31,7 @@ class TestTelegramCommands(unittest.TestCase):
         return self.router.dispatch(cmd, list(args), user_id=1)
 
     def test_ping(self):
-        self.assertIn("pong", self.d("ping"))
+        self.assertIn("ligne", self.d("ping"))
 
     def test_unknown_command(self):
         self.assertIn("inconnue", self.d("nope").lower())
@@ -104,8 +104,8 @@ class TestTelegramCommands(unittest.TestCase):
         self.d("run_scan_now")
         self.sup.workers[0].run_once(now=self.clk())
         out = self.d("metrics")
-        self.assertIn("scans", out)
-        self.assertIn("jobs_success", out)
+        self.assertIn("analyses", out)
+        self.assertIn("tâches réussies", out)
 
     def test_queue_command(self):
         out = self.d("queue")
